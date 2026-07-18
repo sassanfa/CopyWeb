@@ -92,6 +92,14 @@ public sealed class SiteCrawler(SiteSession session)
                 }
                 var document = await _parser.ParseDocumentAsync(html, token);
                 item.Title = document.Title?.Trim() ?? string.Empty;
+                var previousSelections = item.Resources.ToDictionary(x => x.Url, x => x.IsSelected, StringComparer.OrdinalIgnoreCase);
+                item.Resources = DiscoverResources(document, current)
+                    .Select(resource =>
+                    {
+                        if (previousSelections.TryGetValue(resource.Url, out var selected)) resource.IsSelected = selected;
+                        return resource;
+                    })
+                    .ToList();
                 item.State = LinkState.Crawled;
                 processed++;
 
@@ -219,6 +227,7 @@ public sealed class SiteCrawler(SiteSession session)
                 {
                     if (Uri.TryCreate(loc.Value.Trim(), UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https")
                     {
+                        if (!UrlTools.IsLikelyPageUrl(uri)) continue;
                         if (document.Root?.Name.LocalName.Equals("sitemapindex", StringComparison.OrdinalIgnoreCase) == true)
                         {
                             if (sitemapUrls.Add(uri.AbsoluteUri)) pendingSitemaps.Enqueue(uri.AbsoluteUri);
@@ -238,4 +247,38 @@ public sealed class SiteCrawler(SiteSession session)
 
     private static bool IsDisallowed(Uri uri, List<string> rules) =>
         rules.Any(rule => uri.PathAndQuery.StartsWith(rule, StringComparison.Ordinal));
+
+    private static List<ResourceItem> DiscoverResources(AngleSharp.Dom.IDocument document, Uri page)
+    {
+        var result = new Dictionary<string, ResourceItem>(StringComparer.OrdinalIgnoreCase);
+
+        void Add(string? raw, ResourceKind kind)
+        {
+            if (string.IsNullOrWhiteSpace(raw) || raw.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+                raw.StartsWith("blob:", StringComparison.OrdinalIgnoreCase) || raw.StartsWith('#')) return;
+            if (!Uri.TryCreate(page, WebUtility.HtmlDecode(raw.Trim()), out var uri) || uri.Scheme is not ("http" or "https")) return;
+            var key = uri.AbsoluteUri;
+            if (!result.ContainsKey(key)) result[key] = new ResourceItem { Url = key, Kind = kind };
+        }
+
+        var selectors = new (string Selector, string Attribute, ResourceKind Kind)[]
+        {
+            ("img[src]", "src", ResourceKind.Image), ("img[data-src]", "data-src", ResourceKind.Image),
+            ("img[data-lazy-src]", "data-lazy-src", ResourceKind.Image), ("script[src]", "src", ResourceKind.Script),
+            ("link[rel~='stylesheet'][href]", "href", ResourceKind.Stylesheet), ("link[rel~='icon'][href]", "href", ResourceKind.Image),
+            ("source[src]", "src", ResourceKind.Media), ("source[data-src]", "data-src", ResourceKind.Media),
+            ("video[poster]", "poster", ResourceKind.Media), ("audio[src]", "src", ResourceKind.Media),
+            ("input[type=image][src]", "src", ResourceKind.Image)
+        };
+        foreach (var (selector, attribute, kind) in selectors)
+        foreach (var element in document.QuerySelectorAll(selector)) Add(element.GetAttribute(attribute), kind);
+
+        foreach (var element in document.QuerySelectorAll("img[srcset], source[srcset], img[data-lazy-srcset], source[data-lazy-srcset]"))
+        {
+            var attribute = element.HasAttribute("srcset") ? "srcset" : "data-lazy-srcset";
+            foreach (var part in (element.GetAttribute(attribute) ?? string.Empty).Split(','))
+                Add(part.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(), ResourceKind.Image);
+        }
+        return result.Values.ToList();
+    }
 }

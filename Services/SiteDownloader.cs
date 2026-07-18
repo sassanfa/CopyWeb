@@ -40,7 +40,7 @@ public sealed partial class SiteDownloader(SiteSession session)
         // were discovered during crawling. They are downloaded as page resources,
         // not as HTML documents inside the pages folder.
         var selected = sourceItems
-            .Where(x => x.IsSelected && x.State != LinkState.Skipped &&
+            .Where(x => x.IsSelected && x.State != LinkState.Skipped && UrlTools.IsLikelyPageUrl(x.Uri) &&
                         (string.IsNullOrWhiteSpace(x.ContentType) || x.ContentType.Contains("html", StringComparison.OrdinalIgnoreCase)))
             .ToList();
         var items = selected.Where(x => x.State != LinkState.Downloaded).ToList();
@@ -70,7 +70,7 @@ public sealed partial class SiteDownloader(SiteSession session)
 
                 RewritePageLinks(document, item.Uri, pageFile, pageMap);
                 Report(55, item.Url, $"در حال پردازش صفحه {_completed + 1} از {_total}", bytes.LongLength, bytes.LongLength);
-                await RewriteResourcesAsync(document, item.Uri, pageFile, token);
+                await RewriteResourcesAsync(document, item.Uri, pageFile, item, token);
                 Report(85, item.Url, $"در حال ذخیره صفحه {_completed + 1} از {_total}");
 
                 var output = document.DocumentElement?.OuterHtml ?? html;
@@ -170,7 +170,7 @@ public sealed partial class SiteDownloader(SiteSession session)
         }
     }
 
-    private async Task RewriteResourcesAsync(IDocument document, Uri pageUri, string pageFile, CancellationToken token)
+    private async Task RewriteResourcesAsync(IDocument document, Uri pageUri, string pageFile, DownloadItem pageItem, CancellationToken token)
     {
         var targets = new (string Selector, string Attribute)[]
         {
@@ -186,13 +186,17 @@ public sealed partial class SiteDownloader(SiteSession session)
         {
             var raw = element.GetAttribute(attribute);
             if (!TryResourceUri(pageUri, raw, out var resource)) continue;
+            var selection = FindResource(pageItem, resource);
+            if (selection is { IsSelected: false }) continue;
             var local = await DownloadAssetAsync(resource, token);
             if (local is not null)
             {
                 var rewritten = Relative(pageFile, local);
                 element.SetAttribute(attribute, rewritten);
                 if (attribute is "data-src" or "data-lazy-src") element.SetAttribute("src", rewritten);
+                if (selection is not null) { selection.State = LinkState.Downloaded; selection.Error = null; }
             }
+            else if (selection is not null) { selection.State = LinkState.Failed; selection.Error = "منبع قابل دریافت نیست"; }
         }
 
         foreach (var image in document.QuerySelectorAll("img[srcset], source[srcset], img[data-lazy-srcset], source[data-lazy-srcset]"))
@@ -203,8 +207,15 @@ public sealed partial class SiteDownloader(SiteSession session)
             {
                 var pieces = part.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
                 if (pieces.Length == 0 || !TryResourceUri(pageUri, pieces[0], out var resource)) continue;
+                var selection = FindResource(pageItem, resource);
+                if (selection is { IsSelected: false }) continue;
                 var local = await DownloadAssetAsync(resource, token);
-                if (local is not null) rewritten.Add(Relative(pageFile, local) + (pieces.Length > 1 ? " " + pieces[1] : ""));
+                if (local is not null)
+                {
+                    rewritten.Add(Relative(pageFile, local) + (pieces.Length > 1 ? " " + pieces[1] : ""));
+                    if (selection is not null) { selection.State = LinkState.Downloaded; selection.Error = null; }
+                }
+                else if (selection is not null) { selection.State = LinkState.Failed; selection.Error = "منبع قابل دریافت نیست"; }
             }
             if (rewritten.Count > 0)
             {
@@ -243,6 +254,9 @@ public sealed partial class SiteDownloader(SiteSession session)
         catch (OperationCanceledException) { throw; }
         catch { return null; }
     }
+
+    private static ResourceItem? FindResource(DownloadItem page, Uri resource) =>
+        page.Resources.FirstOrDefault(item => item.Url.Equals(resource.AbsoluteUri, StringComparison.OrdinalIgnoreCase));
 
     private async Task<string> RewriteCssAsync(string css, Uri cssUri, string cssFile, CancellationToken token)
     {

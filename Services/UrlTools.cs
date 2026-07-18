@@ -9,6 +9,7 @@ internal static class UrlTools
     [
         ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico", ".css", ".js",
         ".pdf", ".zip", ".rar", ".7z", ".mp3", ".mp4", ".avi", ".mov", ".woff", ".woff2", ".ttf"
+        , ".otf", ".eot", ".avif", ".bmp", ".m4a", ".wav", ".flac", ".xml", ".json", ".rss", ".webmanifest"
     ];
 
     public static Uri? NormalizePageUrl(Uri page, string? value)
@@ -16,10 +17,13 @@ internal static class UrlTools
         if (string.IsNullOrWhiteSpace(value) || value.StartsWith('#')) return null;
         if (!Uri.TryCreate(page, value.Trim(), out var uri)) return null;
         if (uri.Scheme is not ("http" or "https")) return null;
-        if (IgnoredExtensions.Any(x => uri.AbsolutePath.EndsWith(x, StringComparison.OrdinalIgnoreCase))) return null;
+        if (!IsLikelyPageUrl(uri)) return null;
         var builder = new UriBuilder(uri) { Fragment = string.Empty };
         return builder.Uri;
     }
+
+    public static bool IsLikelyPageUrl(Uri uri) =>
+        !IgnoredExtensions.Any(x => uri.AbsolutePath.EndsWith(x, StringComparison.OrdinalIgnoreCase));
 
     public static bool IsInternal(Uri candidate, Uri root, bool includeSubdomains)
     {

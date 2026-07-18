@@ -22,9 +22,29 @@ public sealed class DownloadItem
     public LinkState State { get; set; } = LinkState.Pending;
     public bool IsSelected { get; set; } = true;
     public string? Error { get; set; }
+    public List<ResourceItem> Resources { get; set; } = [];
 
     [JsonIgnore]
     public Uri Uri => new(Url);
+}
+
+public enum ResourceKind
+{
+    Image,
+    Stylesheet,
+    Script,
+    Font,
+    Media,
+    Other
+}
+
+public sealed class ResourceItem
+{
+    public required string Url { get; set; }
+    public ResourceKind Kind { get; set; } = ResourceKind.Other;
+    public bool IsSelected { get; set; } = true;
+    public LinkState State { get; set; } = LinkState.Pending;
+    public string? Error { get; set; }
 }
 
 public sealed class CrawlOptions
