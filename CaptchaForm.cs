@@ -9,6 +9,7 @@ public sealed class CaptchaForm : Form
     private readonly WebView2 _browser = new() { Dock = DockStyle.Fill };
     private readonly Label _status = UiTheme.Label("صفحه در حال بارگذاری است...", 9, color: UiTheme.Muted);
     public IReadOnlyList<BrowserCookie> Cookies { get; private set; } = [];
+    public bool ApproveAllPages { get; private set; }
 
     public CaptchaForm(Uri uri)
     {
@@ -26,22 +27,36 @@ public sealed class CaptchaForm : Form
         var continueButton = UiTheme.Button("ادامه دانلود");
         continueButton.Width = 145;
         continueButton.Click += ContinueClick;
+        var continueAllButton = UiTheme.Button("تأیید همه صفحات", Color.FromArgb(5, 150, 105));
+        continueAllButton.Width = 155;
+        continueAllButton.Click += (_, _) => { ApproveAllPages = true; ContinueClick(null, EventArgs.Empty); };
         var cancelButton = UiTheme.Button("لغو", UiTheme.Muted);
         cancelButton.Width = 90;
         cancelButton.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
 
-        var actions = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Left, FlowDirection = FlowDirection.RightToLeft };
+        var actions = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 40,
+            AutoSize = false,
+            WrapContents = false,
+            FlowDirection = FlowDirection.RightToLeft,
+            Padding = new Padding(0, 2, 0, 0)
+        };
+        actions.Controls.Add(continueAllButton);
         actions.Controls.Add(continueButton);
         actions.Controls.Add(cancelButton);
-        var top = new Panel { Dock = DockStyle.Top, Height = 96, BackColor = Color.White, Padding = new Padding(20, 14, 20, 10) };
+        var top = new Panel { Dock = DockStyle.Top, Height = 138, BackColor = Color.White, Padding = new Padding(20, 14, 20, 10) };
         title.Location = new Point(20, 13);
         help.Location = new Point(20, 43);
         _status.Location = new Point(20, 68);
-        actions.Location = new Point(20, 25);
         top.Controls.AddRange([title, help, _status, actions]);
 
-        Controls.Add(_browser);
         Controls.Add(top);
+        Controls.Add(_browser);
+        // Keep the action bar above the browser surface. This is explicit because
+        // DockStyle.Fill controls can otherwise cover a top-docked panel at runtime.
+        top.BringToFront();
         Services.Localization.Apply(this, Services.AppSettingsStore.Load().Language);
         Shown += InitializeBrowserAsync;
     }

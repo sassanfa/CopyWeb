@@ -1,6 +1,7 @@
 using AngleSharp.Html.Parser;
 using CopyWeb.Models;
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using LinkState = CopyWeb.Models.LinkState;
 
@@ -159,13 +160,16 @@ public sealed class SiteCrawler(SiteSession session)
 
     private static async Task<bool> LooksLikeCaptchaAsync(HttpResponseMessage response, CancellationToken token)
     {
-        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
-            return true;
         var type = response.Content.Headers.ContentType?.MediaType;
         if (type?.Contains("html", StringComparison.OrdinalIgnoreCase) != true) return false;
         var html = await response.Content.ReadAsStringAsync(token);
-        string[] markers = ["captcha", "g-recaptcha", "hcaptcha", "cf-chl-", "challenge-platform", "verify you are human", "تأیید کنید ربات نیستید"];
-        return markers.Any(x => html.Contains(x, StringComparison.OrdinalIgnoreCase));
+        // Do not trigger the browser merely because a site includes a generic
+        // captcha script in its bundle. Only explicit challenge markers count.
+        var visibleHtml = Regex.Replace(html, "<(script|style|noscript)\\b[^>]*>.*?</\\1>", string.Empty, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        string[] markers = ["g-recaptcha", "hcaptcha", "cf-chl-", "challenge-platform", "challenge-form", "data-sitekey", "turnstile", "verify you are human", "checking your browser", "just a moment", "تأیید کنید ربات نیستید"];
+        var explicitChallenge = markers.Any(x => visibleHtml.Contains(x, StringComparison.OrdinalIgnoreCase));
+        var blockedStatus = response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable;
+        return explicitChallenge || (blockedStatus && visibleHtml.Contains("challenge", StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task<List<string>> ReadRobotsAsync(Uri root, CancellationToken token)

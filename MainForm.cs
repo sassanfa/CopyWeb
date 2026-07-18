@@ -40,6 +40,8 @@ public partial class MainForm : Form
     private CancellationTokenSource? _cts;
     private string? _activeLogPath;
     private Stopwatch? _operationClock;
+    private bool _approveCaptchaForOperation;
+    private IReadOnlyList<BrowserCookie> _captchaCookies = [];
 
     static MainForm()
     {
@@ -56,6 +58,8 @@ public partial class MainForm : Form
         RightToLeft = RightToLeft.Yes;
         BackColor = UiTheme.Background;
         InitializeComponent();
+        Icon = LoadApplicationIcon();
+        ShowIcon = true;
         BuildUi();
         Localization.Apply(this, AppSettingsStore.Load().Language);
     }
@@ -179,7 +183,7 @@ public partial class MainForm : Form
         var reports = NavButton("▥   گزارش‌ها", false); reports.Click += (_, _) => ShowReports();
         var about = NavButton("ⓘ   درباره برنامه", false); about.Click += (_, _) => ShowAbout();
         nav.Controls.AddRange([home, projects, settings, reports, about]);
-        var version = UiTheme.Label("نسخه 1.0.13", 9, color: Color.FromArgb(215, 232, 255)); version.Dock = DockStyle.Bottom; version.TextAlign = ContentAlignment.MiddleCenter; version.Height = 30;
+        var version = UiTheme.Label("نسخه 1.0.18", 9, color: Color.FromArgb(215, 232, 255)); version.Dock = DockStyle.Bottom; version.TextAlign = ContentAlignment.MiddleCenter; version.Height = 30;
         sidebar.Controls.Add(version); sidebar.Controls.Add(nav); sidebar.Controls.Add(brand);
         return sidebar;
     }
@@ -190,6 +194,18 @@ public partial class MainForm : Form
         button.Tag = "sidebar-button";
         button.Width = 222; button.Height = 48; button.Margin = new Padding(0, 0, 0, 10); button.TextAlign = ContentAlignment.MiddleLeft; button.Padding = new Padding(18, 0, 12, 0); button.Font = new Font(UiTheme.NormalFont, FontStyle.Bold);
         return button;
+    }
+
+    private static Icon? LoadApplicationIcon()
+    {
+        try
+        {
+            var file = Path.Combine(AppContext.BaseDirectory, "CopyWeb.ico");
+            if (File.Exists(file)) return new Icon(file);
+            var executable = Environment.ProcessPath ?? Application.ExecutablePath;
+            return File.Exists(executable) ? Icon.ExtractAssociatedIcon(executable) : null;
+        }
+        catch { return null; }
     }
 
     private static void ConfigureInput(TextBox input)
@@ -483,6 +499,8 @@ public partial class MainForm : Form
     {
         _cts = new CancellationTokenSource();
         _operationClock = Stopwatch.StartNew();
+        _approveCaptchaForOperation = false;
+        _captchaCookies = [];
         _start.Enabled = false; _resume.Enabled = false; _stop.Enabled = true;
         _progress.Value = 0; _fileProgress.Value = 0;
         _counts.Text = "صفحات: ۰ | دانلودشده: ۰ | ناموفق: ۰"; _speed.Text = "سرعت: -"; _eta.Text = "زمان باقی‌مانده: -";
@@ -531,7 +549,17 @@ public partial class MainForm : Form
         var remaining = total - completed;
         _eta.Text = remaining <= 0 ? "زمان باقی‌مانده: پایان" : $"زمان باقی‌مانده: {TimeSpan.FromSeconds(remaining / perSecond):hh\\:mm\\:ss}";
     }
-    private Task<IReadOnlyList<BrowserCookie>?> ShowCaptchaAsync(Uri uri, CancellationToken token) { using var form = new CaptchaForm(uri); return Task.FromResult<IReadOnlyList<BrowserCookie>?>(form.ShowDialog(this) == DialogResult.OK ? form.Cookies : null); }
+    private Task<IReadOnlyList<BrowserCookie>?> ShowCaptchaAsync(Uri uri, CancellationToken token)
+    {
+        if (_approveCaptchaForOperation)
+            return Task.FromResult<IReadOnlyList<BrowserCookie>?>(_captchaCookies);
+
+        using var form = new CaptchaForm(uri);
+        if (form.ShowDialog(this) != DialogResult.OK) return Task.FromResult<IReadOnlyList<BrowserCookie>?>(null);
+        _captchaCookies = form.Cookies;
+        _approveCaptchaForOperation = form.ApproveAllPages;
+        return Task.FromResult<IReadOnlyList<BrowserCookie>?>(_captchaCookies);
+    }
     private void AppendLog(string message, ActivitySeverity severity = ActivitySeverity.Info, string? url = null, string? details = null)
     {
         if (IsDisposed) return;

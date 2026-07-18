@@ -11,27 +11,32 @@ public static class Localization
         ["احراز هویت پروکسی (اختیاری)"] = "Proxy authentication (optional)", ["فعال"] = "Enabled", ["آدرس پروکسی"] = "Proxy address", ["پورت"] = "Port", ["نام کاربری"] = "Username", ["رمز عبور"] = "Password", ["تأخیر درخواست (ms)"] = "Request delay (ms)",
         ["محل ذخیره"] = "Output folder", ["مسیر پوشه خروجی"] = "Output folder path", ["انتخاب مسیر"] = "Choose folder", ["گزارش فعالیت‌ها"] = "Activity log", ["پاک کردن"] = "Clear",
         ["⌂   شروع"] = "⌂   Home", ["□   پروژه‌ها"] = "□   Projects", ["⚙   تنظیمات"] = "⚙   Settings", ["▥   گزارش‌ها"] = "▥   Reports", ["ⓘ   درباره برنامه"] = "ⓘ   About",
-        ["نسخه 1.0.13"] = "Version 1.0.13", ["پروژه‌های ذخیره‌شده"] = "Saved projects", ["به‌روزرسانی"] = "Refresh", ["مشاهده لینک‌ها"] = "View links", ["بازکردن پوشه"] = "Open folder", ["بازکردن پوشه گزارش"] = "Open report folder", ["بستن"] = "Close",
+        ["نسخه 1.0.18"] = "Version 1.0.18", ["پروژه‌های ذخیره‌شده"] = "Saved projects", ["به‌روزرسانی"] = "Refresh", ["مشاهده لینک‌ها"] = "View links", ["بازکردن پوشه"] = "Open folder", ["بازکردن پوشه گزارش"] = "Open report folder", ["بستن"] = "Close",
         ["گزارش‌های فعالیت"] = "Activity reports", ["گزارش‌های ذخیره‌شده"] = "Saved reports", ["همه رویدادها"] = "All events", ["موفق"] = "Success", ["اطلاعات"] = "Info", ["هشدار"] = "Warning", ["خطا"] = "Error", ["خروجی TXT"] = "Export TXT", ["خروجی CSV"] = "Export CSV", ["خروجی JSON"] = "Export JSON", ["Crash Log"] = "Crash Log برنامه",
         ["مدیریت لینک‌های سایت"] = "Website links", ["لینک‌های مرتبط پیدا شده"] = "Discovered related links", ["انتخاب همه"] = "Select all", ["لغو انتخاب"] = "Clear selection", ["حذف ردیف"] = "Remove row", ["حذف ناموفق‌ها"] = "Remove failed", ["ذخیره لیست"] = "Save list", ["بارگذاری لیست"] = "Load list",
         ["تنظیمات برنامه"] = "Application settings", ["تنظیمات ظاهر و گزارش‌ها"] = "Appearance and reporting", ["قالب رنگی"] = "Color theme", ["رنگ اصلی"] = "Primary color", ["رنگ پس‌زمینه"] = "Background color", ["اعمال و ذخیره"] = "Apply and save", ["انصراف"] = "Cancel", ["زبان برنامه"] = "Application language", ["فارسی"] = "Persian", ["English"] = "English", ["فعال‌سازی حالت سازگار با صفحات JavaScript / SPA"] = "Enable JavaScript / SPA compatibility", ["User-Agent سفارشی (اختیاری)"] = "Custom User-Agent (optional)", ["Headerهای سفارشی — هر خط: Name: Value"] = "Custom headers — one per line: Name: Value", ["Cookie سفارشی (اختیاری)"] = "Custom Cookie (optional)",
         ["درباره CopyWeb"] = "About CopyWeb", ["تأیید را داخل مرورگر انجام دهید"] = "Complete the verification in the browser", ["ادامه دانلود"] = "Continue download", ["لغو"] = "Cancel"
     };
 
+    private static readonly Dictionary<string, string> Persian = English
+        .GroupBy(x => x.Value, StringComparer.Ordinal)
+        .ToDictionary(x => x.Key, x => x.First().Key, StringComparer.Ordinal);
+
     public static void Apply(Control root, string language)
     {
-        if (!language.Equals("en", StringComparison.OrdinalIgnoreCase)) return;
-        root.RightToLeft = RightToLeft.No;
+        var isEnglish = language.Equals("en", StringComparison.OrdinalIgnoreCase);
+        var translations = isEnglish ? English : Persian;
+        root.RightToLeft = isEnglish ? RightToLeft.No : RightToLeft.Yes;
         foreach (Control control in Enumerate(root))
         {
-            if (English.TryGetValue(control.Text, out var translated)) control.Text = translated;
-            if (control is TextBox textBox && English.TryGetValue(textBox.PlaceholderText, out var placeholder)) textBox.PlaceholderText = placeholder;
+            if (translations.TryGetValue(control.Text, out var translated)) control.Text = translated;
+            if (control is TextBox textBox && translations.TryGetValue(textBox.PlaceholderText, out var placeholder)) textBox.PlaceholderText = placeholder;
             if (control is ComboBox combo)
             {
                 for (var i = 0; i < combo.Items.Count; i++)
-                    if (combo.Items[i] is string item && English.TryGetValue(item, out var itemTranslation)) combo.Items[i] = itemTranslation;
+                    if (combo.Items[i] is string item && translations.TryGetValue(item, out var itemTranslation)) combo.Items[i] = itemTranslation;
             }
-            control.RightToLeft = RightToLeft.No;
+            control.RightToLeft = isEnglish ? RightToLeft.No : RightToLeft.Yes;
         }
     }
 
