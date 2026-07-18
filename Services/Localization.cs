@@ -6,7 +6,7 @@ public static class Localization
     {
         ["شروع دانلود سایت"] = "Start website download", ["آدرس سایت مورد نظر خود را وارد کنید و تنظیمات را انتخاب نمایید."] = "Enter the website address and choose your settings.",
         ["عملیات"] = "Actions", ["شروع بررسی سایت"] = "Scan website", ["ادامه پروژه"] = "Resume project", ["توقف و ذخیره"] = "Stop and save", ["تست پروکسی"] = "Test proxy",
-        ["اطلاعات پروژه"] = "Project information", ["آماده شروع"] = "Ready", ["فایل فعلی: -"] = "Current file: -", ["هنوز عملیاتی انجام نشده است"] = "No operation has started",
+        ["اطلاعات پروژه"] = "Project information", ["آماده شروع"] = "Ready", ["فایل فعلی: -"] = "Current file: -", ["هنوز عملیاتی انجام نشده است"] = "No operation has started", ["پیشرفت کل پروژه"] = "Overall project progress", ["پیشرفت فایل جاری"] = "Current file progress",
         ["تنظیمات دانلود"] = "Download settings", ["آدرس سایت"] = "Website URL", ["حداکثر صفحه"] = "Page limit", ["عمق لینک"] = "Link depth", ["شامل زیردامنه‌ها"] = "Include subdomains", ["رعایت robots.txt"] = "Respect robots.txt", ["خواندن Sitemap"] = "Read sitemap", ["پیروی از Canonical"] = "Follow canonical",
         ["احراز هویت پروکسی (اختیاری)"] = "Proxy authentication (optional)", ["فعال"] = "Enabled", ["آدرس پروکسی"] = "Proxy address", ["پورت"] = "Port", ["نام کاربری"] = "Username", ["رمز عبور"] = "Password", ["تأخیر درخواست (ms)"] = "Request delay (ms)",
         ["محل ذخیره"] = "Output folder", ["مسیر پوشه خروجی"] = "Output folder path", ["انتخاب مسیر"] = "Choose folder", ["گزارش فعالیت‌ها"] = "Activity log", ["پاک کردن"] = "Clear",

@@ -48,7 +48,8 @@ public sealed record DownloadProgress(
     string? CurrentUrl = null,
     long BytesDownloaded = 0,
     long TotalBytes = 0,
-    int Failed = 0);
+    int Failed = 0,
+    long TotalBytesDownloaded = 0);
 
 public enum ProxyKind
 {

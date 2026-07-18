@@ -27,11 +27,13 @@ public partial class MainForm : Form
     private readonly NumericUpDown _requestDelay = new();
     private readonly ProgressBar _progress = new();
     private readonly ProgressBar _fileProgress = new();
+    private readonly Label _progressCaption = UiTheme.Label("پیشرفت کل پروژه", 8, color: UiTheme.Muted);
+    private readonly Label _fileProgressCaption = UiTheme.Label("پیشرفت فایل جاری", 8, color: UiTheme.Muted);
     private readonly Label _status = UiTheme.Label("آماده شروع", 9, color: UiTheme.Muted);
     private readonly Label _currentFile = UiTheme.Label("فایل فعلی: -", 9, color: UiTheme.Muted);
     private readonly Label _stats = UiTheme.Label("هنوز عملیاتی انجام نشده است", 10, FontStyle.Bold);
     private readonly Label _counts = UiTheme.Label("صفحات: ۰ | دانلودشده: ۰ | ناموفق: ۰", 9, color: UiTheme.Muted);
-    private readonly Label _speed = UiTheme.Label("سرعت: -", 9, color: UiTheme.Muted);
+    private readonly Label _speed = UiTheme.Label("دانلود: - | ارسال: ۰ B/s", 9, color: UiTheme.Muted);
     private readonly Label _eta = UiTheme.Label("زمان باقی‌مانده: -", 9, color: UiTheme.Muted);
     private readonly RichTextBox _log = new();
     private readonly Button _start = UiTheme.Button("شروع بررسی سایت");
@@ -114,9 +116,18 @@ public partial class MainForm : Form
         var infoTitle = UiTheme.Label("اطلاعات پروژه", 12, FontStyle.Bold); infoTitle.Location = new Point(22, 18);
         _status.Location = new Point(22, 55); _currentFile.Location = new Point(22, 86); _stats.Location = new Point(22, 122);
         _counts.Location = new Point(22, 150); _speed.Location = new Point(22, 176); _eta.Location = new Point(22, 202);
+        foreach (var label in new[] { _status, _currentFile, _stats, _counts, _speed, _eta })
+        {
+            label.AutoSize = false;
+            label.Height = 22;
+            label.Width = 242;
+            label.AutoEllipsis = true;
+        }
+        _progressCaption.Location = new Point(22, 220); _progressCaption.Width = 242;
+        _fileProgressCaption.Location = new Point(22, 260); _fileProgressCaption.Width = 242;
         _progress.Location = new Point(22, 238); _progress.Width = 242; _progress.Height = 20;
         _fileProgress.Location = new Point(22, 278); _fileProgress.Width = 242; _fileProgress.Height = 20;
-        info.Controls.AddRange([infoTitle, _status, _currentFile, _stats, _counts, _speed, _eta, _progress, _fileProgress]);
+        info.Controls.AddRange([infoTitle, _status, _currentFile, _stats, _counts, _speed, _eta, _progressCaption, _progress, _fileProgressCaption, _fileProgress]);
         rightColumn.Controls.Add(info); rightColumn.Controls.Add(operations);
 
         var settings = UiTheme.Card(); settings.Dock = DockStyle.Top; settings.Height = 342;
@@ -429,7 +440,17 @@ public partial class MainForm : Form
     {
         var downloader = new SiteDownloader(session); var downloadProgress = new Progress<DownloadProgress>(p =>
         {
-            _status.Text = p.Message; _currentFile.Text = $"فایل فعلی ({p.CurrentPercent}%): {p.CurrentUrl ?? "-"}"; _fileProgress.Value = Math.Clamp(p.CurrentPercent, 0, 100); _progress.Value = p.Total == 0 ? 100 : Math.Clamp(p.Completed * 100 / p.Total, 0, 100); _stats.Text = $"پیشرفت کل: {p.Completed} از {p.Total} صفحه"; _counts.Text = $"صفحات: {p.Total} | دانلودشده: {p.Completed} | ناموفق: {p.Failed}"; UpdateSpeedAndEta(p.Completed, p.Total); AppendLog($"{p.CurrentPercent}% | {p.Message}", p.Failed > 0 ? ActivitySeverity.Warning : ActivitySeverity.Info, p.CurrentUrl);
+            _status.Text = p.Message;
+            _currentFile.Text = $"فایل فعلی ({p.CurrentPercent}%): {p.CurrentUrl ?? "-"}";
+            _fileProgress.Value = Math.Clamp(p.CurrentPercent, 0, 100);
+            var totalPercent = p.Total == 0 ? 100 : Math.Clamp(p.Completed * 100 / p.Total, 0, 100);
+            _progress.Value = totalPercent;
+            _stats.Text = $"پیشرفت کل صفحات: {p.Completed} از {p.Total} ({totalPercent}%)";
+            var successful = Math.Max(0, p.Completed - p.Failed);
+            _counts.Text = $"صفحات: {p.Total} | دانلودشده: {successful} | ناموفق: {p.Failed}";
+            UpdateSpeedAndEta(p.Completed, p.Total, p.TotalBytesDownloaded);
+            var severity = p.Message.Contains("ناموفق", StringComparison.OrdinalIgnoreCase) ? ActivitySeverity.Warning : ActivitySeverity.Info;
+            AppendLog($"{p.CurrentPercent}% | {p.Message}", severity, p.CurrentUrl);
         });
         await downloader.DownloadAsync(root, links, output, downloadProgress, _cts!.Token, (int)_requestDelay.Value);
     }
@@ -503,7 +524,7 @@ public partial class MainForm : Form
         _captchaCookies = [];
         _start.Enabled = false; _resume.Enabled = false; _stop.Enabled = true;
         _progress.Value = 0; _fileProgress.Value = 0;
-        _counts.Text = "صفحات: ۰ | دانلودشده: ۰ | ناموفق: ۰"; _speed.Text = "سرعت: -"; _eta.Text = "زمان باقی‌مانده: -";
+        _counts.Text = "صفحات: ۰ | دانلودشده: ۰ | ناموفق: ۰"; _speed.Text = "دانلود: ۰ B/s | ارسال: ۰ B/s"; _eta.Text = "زمان باقی‌مانده: -";
         _log.Clear();
     }
 
@@ -536,18 +557,33 @@ public partial class MainForm : Form
         MessageBox.Show(this, ex.Message, "خطا", MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 
-    private void UpdateSpeedAndEta(int completed, int total)
+    private void UpdateSpeedAndEta(int completed, int total, long totalBytesDownloaded)
     {
-        if (_operationClock is null || _operationClock.Elapsed.TotalSeconds < 0.5 || completed <= 0)
+        if (_operationClock is null || _operationClock.Elapsed.TotalSeconds < 0.5)
         {
-            _speed.Text = "سرعت: -";
+            _speed.Text = "دانلود: ۰ B/s | ارسال: ۰ B/s";
             _eta.Text = "زمان باقی‌مانده: -";
             return;
         }
-        var perSecond = completed / _operationClock.Elapsed.TotalSeconds;
-        _speed.Text = $"سرعت: {perSecond:0.00} صفحه/ثانیه";
+        var elapsedSeconds = _operationClock.Elapsed.TotalSeconds;
+        var bytesPerSecond = totalBytesDownloaded / elapsedSeconds;
+        _speed.Text = $"دانلود: {FormatBytes(bytesPerSecond)}/s | ارسال: ۰ B/s";
+        var perSecond = completed / elapsedSeconds;
+        if (completed <= 0 || perSecond <= 0)
+        {
+            _eta.Text = "زمان باقی‌مانده: در حال محاسبه...";
+            return;
+        }
         var remaining = total - completed;
         _eta.Text = remaining <= 0 ? "زمان باقی‌مانده: پایان" : $"زمان باقی‌مانده: {TimeSpan.FromSeconds(remaining / perSecond):hh\\:mm\\:ss}";
+    }
+
+    private static string FormatBytes(double bytes)
+    {
+        if (bytes < 1024) return $"{bytes:0} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024:0.0} KB";
+        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024 * 1024):0.0} MB";
+        return $"{bytes / (1024 * 1024 * 1024):0.0} GB";
     }
     private Task<IReadOnlyList<BrowserCookie>?> ShowCaptchaAsync(Uri uri, CancellationToken token)
     {
