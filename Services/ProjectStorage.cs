@@ -60,6 +60,26 @@ public static class ProjectStorage
         }
     }
 
+    public static void Forget(string fileName)
+    {
+        try
+        {
+            var fullPath = Path.GetFullPath(fileName);
+            var files = GetKnownProjectFiles()
+                .Where(File.Exists)
+                .Where(x => !Path.GetFullPath(x).Equals(fullPath, StringComparison.OrdinalIgnoreCase))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            Directory.CreateDirectory(Path.GetDirectoryName(IndexFile)!);
+            var temp = Path.Combine(Path.GetDirectoryName(IndexFile)!, $".projects.{Guid.NewGuid():N}.tmp");
+            File.WriteAllText(temp, JsonSerializer.Serialize(files.OrderBy(x => x).ToList(), Options));
+            ReplaceAtomically(temp, IndexFile);
+        }
+        catch
+        {
+            // Removing a project must still succeed when the optional index is unavailable.
+        }
+    }
+
     private static void Register(string fileName)
     {
         try

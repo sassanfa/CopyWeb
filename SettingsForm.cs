@@ -129,22 +129,22 @@ public sealed class SettingsForm : Form
         switch (_preset.SelectedItem?.ToString())
         {
             case "سبز":
-                _primary = Color.FromArgb(5, 150, 105);
+                _primary = Color.FromArgb(91, 130, 111);
                 _background = Color.FromArgb(242, 250, 247);
                 _surface = Color.White;
                 break;
             case "بنفش":
-                _primary = Color.FromArgb(124, 58, 237);
+                _primary = Color.FromArgb(115, 105, 140);
                 _background = Color.FromArgb(248, 246, 255);
                 _surface = Color.White;
                 break;
             case "تیره":
-                _primary = Color.FromArgb(96, 165, 250);
+                _primary = Color.FromArgb(106, 130, 160);
                 _background = Color.FromArgb(24, 31, 42);
                 _surface = Color.FromArgb(35, 45, 60);
                 break;
             case "آبی":
-                _primary = Color.FromArgb(39, 91, 219);
+                _primary = Color.FromArgb(92, 112, 146);
                 _background = Color.FromArgb(244, 247, 251);
                 _surface = Color.White;
                 break;
@@ -197,6 +197,8 @@ public sealed class SettingsForm : Form
         result.RequestTimeoutSeconds = previous.RequestTimeoutSeconds;
         result.RetryCount = previous.RetryCount;
         result.DelayMilliseconds = previous.DelayMilliseconds;
+        result.MaxConcurrentDownloads = previous.MaxConcurrentDownloads;
+        result.MinimumFreeDiskSpaceMb = previous.MinimumFreeDiskSpaceMb;
         result.ReadSitemaps = previous.ReadSitemaps;
         result.FollowCanonicalLinks = previous.FollowCanonicalLinks;
         result.ProxyProfiles = previous.ProxyProfiles;

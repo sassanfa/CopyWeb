@@ -103,9 +103,9 @@ public sealed class LinksForm : Form
         var all = UiTheme.Button("انتخاب همه", Color.FromArgb(71, 85, 105)); all.Width = 115; all.Click += (_, _) => SetAll(true);
         var none = UiTheme.Button("لغو انتخاب", Color.FromArgb(100, 116, 139)); none.Width = 115; none.Click += (_, _) => SetAll(false);
         var remove = UiTheme.Button("حذف ردیف", UiTheme.Danger); remove.Width = 110; remove.Click += RemoveRows;
-        var removeFailed = UiTheme.Button("حذف ناموفق‌ها", Color.FromArgb(185, 28, 28)); removeFailed.Width = 130; removeFailed.Click += (_, _) => RemoveFailed();
-        var save = UiTheme.Button("ذخیره لیست", Color.FromArgb(5, 150, 105)); save.Width = 115; save.Click += SaveClick;
-        var load = UiTheme.Button("بارگذاری لیست", Color.FromArgb(14, 116, 144)); load.Width = 130; load.Click += LoadClick;
+        var removeFailed = UiTheme.Button("حذف ناموفق‌ها", UiTheme.Danger); removeFailed.Width = 130; removeFailed.Click += (_, _) => RemoveFailed();
+        var save = UiTheme.Button("ذخیره لیست", UiTheme.Accent); save.Width = 115; save.Click += SaveClick;
+        var load = UiTheme.Button("بارگذاری لیست", Color.FromArgb(91, 125, 135)); load.Width = 130; load.Click += LoadClick;
         bottom.Controls.AddRange([download, all, none, removeFailed, remove, save, load]);
 
         Controls.Add(_grid);

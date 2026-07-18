@@ -3,7 +3,7 @@ namespace CopyWeb.Models;
 public sealed class AppSettings
 {
     public string ThemePreset { get; set; } = "آبی";
-    public int PrimaryColorArgb { get; set; } = Color.FromArgb(39, 91, 219).ToArgb();
+    public int PrimaryColorArgb { get; set; } = Color.FromArgb(92, 112, 146).ToArgb();
     public int BackgroundColorArgb { get; set; } = Color.FromArgb(244, 247, 251).ToArgb();
     public int SurfaceColorArgb { get; set; } = Color.White.ToArgb();
     public bool SaveDetailedLogs { get; set; } = true;
@@ -17,6 +17,10 @@ public sealed class AppSettings
     public int RequestTimeoutSeconds { get; set; } = 45;
     public int RetryCount { get; set; } = 2;
     public int DelayMilliseconds { get; set; } = 150;
+    /// <summary>Maximum number of page downloads running at the same time.</summary>
+    public int MaxConcurrentDownloads { get; set; } = 4;
+    /// <summary>Minimum free space required before starting a download (MB).</summary>
+    public long MinimumFreeDiskSpaceMb { get; set; } = 512;
     public bool ReadSitemaps { get; set; } = true;
     public bool FollowCanonicalLinks { get; set; } = true;
     public bool RenderJavaScript { get; set; }

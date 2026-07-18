@@ -6,12 +6,13 @@ internal static class UiTheme
 {
     public static Color Background { get; private set; } = Color.FromArgb(244, 247, 251);
     public static Color Surface { get; private set; } = Color.White;
-    public static Color Primary { get; private set; } = Color.FromArgb(39, 91, 219);
-    public static Color PrimaryDark { get; private set; } = Color.FromArgb(29, 66, 158);
+    public static Color Primary { get; private set; } = Color.FromArgb(92, 112, 146);
+    public static Color PrimaryDark { get; private set; } = Color.FromArgb(67, 82, 108);
+    public static Color Accent { get; } = Color.FromArgb(91, 130, 111);
     public static Color Text { get; private set; } = Color.FromArgb(30, 41, 59);
     public static Color Muted { get; private set; } = Color.FromArgb(100, 116, 139);
     public static Color Border { get; private set; } = Color.FromArgb(226, 232, 240);
-    public static Color Danger { get; } = Color.FromArgb(220, 38, 38);
+    public static Color Danger { get; } = Color.FromArgb(145, 90, 90);
     public static readonly Font NormalFont = new("Segoe UI", 10F);
 
     public static void Apply(AppSettings settings)
@@ -47,7 +48,61 @@ internal static class UiTheme
         button.FlatAppearance.BorderSize = 0;
         button.FlatAppearance.MouseOverBackColor = backColor ?? PrimaryDark;
         button.FlatAppearance.MouseDownBackColor = backColor ?? PrimaryDark;
+        button.Resize += (_, _) => ApplyRoundedRegion(button);
+        ApplyRoundedRegion(button);
         return button;
+    }
+
+    private static void ApplyRoundedRegion(Button button)
+    {
+        if (button.Width <= 0 || button.Height <= 0) return;
+        var radius = Math.Min(16, Math.Max(8, button.Height / 3));
+        using var path = new System.Drawing.Drawing2D.GraphicsPath();
+        var diameter = radius * 2;
+        path.AddArc(0, 0, diameter, diameter, 180, 90);
+        path.AddArc(button.Width - diameter - 1, 0, diameter, diameter, 270, 90);
+        path.AddArc(button.Width - diameter - 1, button.Height - diameter - 1, diameter, diameter, 0, 90);
+        path.AddArc(0, button.Height - diameter - 1, diameter, diameter, 90, 90);
+        path.CloseFigure();
+        var previous = button.Region;
+        button.Region = new Region(path);
+        previous?.Dispose();
+    }
+
+    public static Panel RoundedInput(TextBox input, Size size, Point location)
+    {
+        var container = new Panel
+        {
+            Size = size,
+            Location = location,
+            BackColor = Border,
+            Padding = new Padding(1),
+            Tag = "input-container"
+        };
+        container.Resize += (_, _) => ApplyRoundedRegion(container, 10);
+        ApplyRoundedRegion(container, 10);
+
+        input.BorderStyle = BorderStyle.None;
+        input.Dock = DockStyle.Fill;
+        input.Margin = Padding.Empty;
+        input.BackColor = Surface;
+        container.Controls.Add(input);
+        return container;
+    }
+
+    private static void ApplyRoundedRegion(Control control, int radius)
+    {
+        if (control.Width <= 0 || control.Height <= 0) return;
+        using var path = new System.Drawing.Drawing2D.GraphicsPath();
+        var diameter = radius * 2;
+        path.AddArc(0, 0, diameter, diameter, 180, 90);
+        path.AddArc(control.Width - diameter - 1, 0, diameter, diameter, 270, 90);
+        path.AddArc(control.Width - diameter - 1, control.Height - diameter - 1, diameter, diameter, 0, 90);
+        path.AddArc(0, control.Height - diameter - 1, diameter, diameter, 90, 90);
+        path.CloseFigure();
+        var previous = control.Region;
+        control.Region = new Region(path);
+        previous?.Dispose();
     }
 
     public static Label Label(string text, float size = 10, FontStyle style = FontStyle.Regular, Color? color = null) =>

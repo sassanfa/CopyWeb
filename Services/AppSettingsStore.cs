@@ -17,7 +17,11 @@ public static class AppSettingsStore
         try
         {
             if (!File.Exists(FilePath)) return new AppSettings();
-            return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), Options) ?? new AppSettings();
+            var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), Options) ?? new AppSettings();
+            // Migrate the original saturated blue default to the calmer slate palette.
+            if (settings.PrimaryColorArgb == Color.FromArgb(39, 91, 219).ToArgb())
+                settings.PrimaryColorArgb = Color.FromArgb(92, 112, 146).ToArgb();
+            return settings;
         }
         catch
         {

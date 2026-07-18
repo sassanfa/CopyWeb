@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v10.0": {
-      "CopyWeb/1.0.0": {
+      "CopyWeb/1.1.0": {
         "dependencies": {
           "AngleSharp": "1.5.2",
           "Microsoft.Web.WebView2": "1.0.4078.44",
@@ -72,7 +72,7 @@
     }
   },
   "libraries": {
-    "CopyWeb/1.0.0": {
+    "CopyWeb/1.1.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

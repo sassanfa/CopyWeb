@@ -25,6 +25,8 @@ public partial class MainForm : Form
     private readonly NumericUpDown _timeoutSeconds = new();
     private readonly NumericUpDown _retryCount = new();
     private readonly NumericUpDown _requestDelay = new();
+    private readonly NumericUpDown _concurrency = new();
+    private readonly NumericUpDown _minFreeDisk = new();
     private readonly ProgressBar _progress = new();
     private readonly ProgressBar _fileProgress = new();
     private readonly Label _progressCaption = UiTheme.Label("پیشرفت کل پروژه", 8, color: UiTheme.Muted);
@@ -37,8 +39,9 @@ public partial class MainForm : Form
     private readonly Label _eta = UiTheme.Label("زمان باقی‌مانده: -", 9, color: UiTheme.Muted);
     private readonly RichTextBox _log = new();
     private readonly Button _start = UiTheme.Button("شروع بررسی سایت");
-    private readonly Button _resume = UiTheme.Button("ادامه پروژه", Color.FromArgb(5, 150, 105));
+    private readonly Button _resume = UiTheme.Button("ادامه پروژه", UiTheme.Accent);
     private readonly Button _stop = UiTheme.Button("توقف و ذخیره", UiTheme.Danger);
+    private readonly Button _testProxy = UiTheme.Button("تست پروکسی", Color.FromArgb(210, 222, 238));
     private CancellationTokenSource? _cts;
     private string? _activeLogPath;
     private Stopwatch? _operationClock;
@@ -104,16 +107,17 @@ public partial class MainForm : Form
         content.Controls.Add(leftColumn);
         content.Controls.Add(rightColumn);
 
-        var operations = UiTheme.Card(); operations.Dock = DockStyle.Top; operations.Height = 318;
+        var operations = UiTheme.Card(); operations.Dock = DockStyle.Top; operations.Height = 376;
         var operationsTitle = UiTheme.Label("عملیات", 13, FontStyle.Bold); operationsTitle.Location = new Point(22, 18);
         _start.Width = 242; _start.Height = 48; _start.Location = new Point(22, 58); _start.Click += StartClick;
         _resume.Tag = "accent-button"; _resume.Width = 242; _resume.Height = 48; _resume.Location = new Point(22, 116); _resume.Click += ResumeClick;
         _stop.Tag = "danger-button"; _stop.Width = 242; _stop.Height = 48; _stop.Location = new Point(22, 174); _stop.Enabled = false; _stop.Click += (_, _) => _cts?.Cancel();
-        var testProxy = UiTheme.Button("تست پروکسی", Color.White); testProxy.Tag = "secondary-button"; testProxy.ForeColor = UiTheme.Text; testProxy.Width = 242; testProxy.Height = 48; testProxy.Location = new Point(22, 232); testProxy.Click += TestProxyClick;
-        operations.Controls.AddRange([operationsTitle, _start, _resume, _stop, testProxy]);
+        _testProxy.Tag = "secondary-button"; _testProxy.ForeColor = UiTheme.Text; _testProxy.Width = 242; _testProxy.Height = 48; _testProxy.Location = new Point(22, 232); _testProxy.Click += TestProxyClick;
+        var tutorial = UiTheme.Button("آموزش", Color.FromArgb(226, 231, 239)); tutorial.Tag = "secondary-button"; tutorial.ForeColor = UiTheme.Text; tutorial.Width = 242; tutorial.Height = 48; tutorial.Location = new Point(22, 290); tutorial.Click += (_, _) => ShowTutorial();
+        operations.Controls.AddRange([operationsTitle, _start, _resume, _stop, _testProxy, tutorial]);
 
         var info = UiTheme.Card(); info.Dock = DockStyle.Fill; info.Margin = new Padding(0, 14, 0, 0);
-        var infoTitle = UiTheme.Label("اطلاعات پروژه", 12, FontStyle.Bold); infoTitle.Location = new Point(22, 18);
+        var infoTitle = UiTheme.Label("اطلاعات پروژه", 12, FontStyle.Bold); infoTitle.Location = new Point(22, 18); infoTitle.AutoSize = false; infoTitle.Width = 242; infoTitle.Height = 24; infoTitle.TextAlign = ContentAlignment.MiddleRight;
         _status.Location = new Point(22, 55); _currentFile.Location = new Point(22, 86); _stats.Location = new Point(22, 122);
         _counts.Location = new Point(22, 150); _speed.Location = new Point(22, 176); _eta.Location = new Point(22, 202);
         foreach (var label in new[] { _status, _currentFile, _stats, _counts, _speed, _eta })
@@ -121,12 +125,14 @@ public partial class MainForm : Form
             label.AutoSize = false;
             label.Height = 22;
             label.Width = 242;
+            label.TextAlign = ContentAlignment.MiddleRight;
             label.AutoEllipsis = true;
         }
-        _progressCaption.Location = new Point(22, 220); _progressCaption.Width = 242;
-        _fileProgressCaption.Location = new Point(22, 260); _fileProgressCaption.Width = 242;
-        _progress.Location = new Point(22, 238); _progress.Width = 242; _progress.Height = 20;
-        _fileProgress.Location = new Point(22, 278); _fileProgress.Width = 242; _fileProgress.Height = 20;
+        // Keep the progress captions below the ETA line so their text is never clipped.
+        _progressCaption.Location = new Point(22, 230); _progressCaption.Width = 242;
+        _fileProgressCaption.Location = new Point(22, 278); _fileProgressCaption.Width = 242;
+        _progress.Location = new Point(22, 248); _progress.Width = 242; _progress.Height = 20;
+        _fileProgress.Location = new Point(22, 296); _fileProgress.Width = 242; _fileProgress.Height = 20;
         info.Controls.AddRange([infoTitle, _status, _currentFile, _stats, _counts, _speed, _eta, _progressCaption, _progress, _fileProgressCaption, _fileProgress]);
         rightColumn.Controls.Add(info); rightColumn.Controls.Add(operations);
 
@@ -134,6 +140,7 @@ public partial class MainForm : Form
         var settingsTitle = UiTheme.Label("تنظیمات دانلود", 13, FontStyle.Bold); settingsTitle.Location = new Point(22, 18);
         var urlLabel = UiTheme.Label("آدرس سایت", 10, FontStyle.Bold); urlLabel.Location = new Point(22, 52);
         ConfigureInput(_url); _url.PlaceholderText = "https://example.com"; _url.Multiline = false; _url.AutoSize = false; _url.Height = 30; _url.Location = new Point(22, 125); _url.Width = 460;
+        var pasteUrl = UiTheme.Button("چسباندن", Color.FromArgb(238, 243, 250)); pasteUrl.Tag = "secondary-button"; pasteUrl.ForeColor = UiTheme.Text; pasteUrl.Width = 82; pasteUrl.Height = 30; pasteUrl.Location = new Point(490, 125); pasteUrl.Click += (_, _) => PasteUrlFromClipboard();
         var urlLine = new Panel { BackColor = UiTheme.Border, Height = 1, Width = 460, Location = new Point(22, 175), Tag = "border" };
         var maxLabel = UiTheme.Label("حداکثر صفحه", 9, color: UiTheme.Muted); maxLabel.Location = new Point(22, 197);
         _maxPages.Minimum = 1; _maxPages.Maximum = 10000; _maxPages.Value = 500; _maxPages.Width = 130; _maxPages.Location = new Point(22, 223);
@@ -143,11 +150,11 @@ public partial class MainForm : Form
         _robots.Text = "رعایت robots.txt"; _robots.Checked = true; _robots.AutoSize = true; _robots.Location = new Point(440, 228);
         _sitemaps.Text = "خواندن Sitemap"; _sitemaps.Checked = true; _sitemaps.AutoSize = true; _sitemaps.Location = new Point(22, 270);
         _canonical.Text = "پیروی از Canonical"; _canonical.Checked = true; _canonical.AutoSize = true; _canonical.Location = new Point(160, 270);
-        settings.Controls.AddRange([settingsTitle, urlLabel, _url, urlLine, maxLabel, _maxPages, depthLabel, _depth, _subdomains, _robots, _sitemaps, _canonical]);
+        settings.Controls.AddRange([settingsTitle, urlLabel, _url, pasteUrl, urlLine, maxLabel, _maxPages, depthLabel, _depth, _subdomains, _robots, _sitemaps, _canonical]);
 
-        var proxy = UiTheme.Card(); proxy.Dock = DockStyle.Top; proxy.Height = 202;
+        var proxy = UiTheme.Card(); proxy.Dock = DockStyle.Top; proxy.Height = 270;
         var proxyTitle = UiTheme.Label("احراز هویت پروکسی (اختیاری)", 12, FontStyle.Bold); proxyTitle.Location = new Point(22, 16);
-        _proxyEnabled.Text = "فعال"; _proxyEnabled.AutoSize = true; _proxyEnabled.Location = new Point(235, 19);
+        _proxyEnabled.Text = "فعال"; _proxyEnabled.AutoSize = true; _proxyEnabled.Location = new Point(235, 19); _proxyEnabled.CheckedChanged += (_, _) => UpdateProxyControls();
         _proxyType.DropDownStyle = ComboBoxStyle.DropDownList; _proxyType.Items.AddRange(["HTTP", "HTTPS", "SOCKS5"]); _proxyType.SelectedIndex = 0; _proxyType.Width = 95; _proxyType.Location = new Point(22, 58);
         ConfigureInput(_proxyAddress); _proxyAddress.PlaceholderText = "آدرس پروکسی"; _proxyAddress.Width = 125; _proxyAddress.Location = new Point(125, 58);
         ConfigureInput(_proxyPort); _proxyPort.PlaceholderText = "پورت"; _proxyPort.Width = 58; _proxyPort.Location = new Point(258, 58);
@@ -160,7 +167,11 @@ public partial class MainForm : Form
         var delayLabel = UiTheme.Label("تأخیر درخواست (ms)", 8, color: UiTheme.Muted); delayLabel.Location = new Point(220, 108);
         _requestDelay.Minimum = 0; _requestDelay.Maximum = 60000; _requestDelay.Value = 150; _requestDelay.Width = 120; _requestDelay.Location = new Point(220, 132);
         var proxyHint = UiTheme.Label("HTTP / HTTPS / SOCKS5 — رمز عبور با Windows DPAPI ذخیره می‌شود.", 8, color: UiTheme.Muted); proxyHint.Location = new Point(22, 174);
-        proxy.Controls.AddRange([proxyTitle, _proxyEnabled, _proxyType, _proxyAddress, _proxyPort, _proxyUser, _proxyPassword, timeoutLabel, _timeoutSeconds, retryLabel, _retryCount, delayLabel, _requestDelay, proxyHint]);
+        var concurrencyLabel = UiTheme.Label("دانلود هم‌زمان", 8, color: UiTheme.Muted); concurrencyLabel.Location = new Point(22, 205);
+        _concurrency.Minimum = 1; _concurrency.Maximum = 16; _concurrency.Width = 70; _concurrency.Location = new Point(22, 220);
+        var diskLabel = UiTheme.Label("حداقل فضای آزاد (MB)", 8, color: UiTheme.Muted); diskLabel.Location = new Point(112, 205);
+        _minFreeDisk.Minimum = 0; _minFreeDisk.Maximum = 1024 * 1024; _minFreeDisk.Width = 120; _minFreeDisk.Location = new Point(112, 220);
+        proxy.Controls.AddRange([proxyTitle, _proxyEnabled, _proxyType, _proxyAddress, _proxyPort, _proxyUser, _proxyPassword, timeoutLabel, _timeoutSeconds, retryLabel, _retryCount, delayLabel, _requestDelay, proxyHint, concurrencyLabel, _concurrency, diskLabel, _minFreeDisk]);
 
         var output = UiTheme.Card(); output.Dock = DockStyle.Top; output.Height = 120;
         var outputTitle = UiTheme.Label("محل ذخیره", 12, FontStyle.Bold); outputTitle.Location = new Point(22, 16);
@@ -176,6 +187,7 @@ public partial class MainForm : Form
         leftColumn.Controls.Add(logCard); leftColumn.Controls.Add(output); leftColumn.Controls.Add(proxy); leftColumn.Controls.Add(settings);
 
         LoadSavedSettings();
+        UpdateProxyControls();
         Controls.Add(root);
     }
 
@@ -184,24 +196,24 @@ public partial class MainForm : Form
         var sidebar = new Panel { Dock = DockStyle.Left, Width = 270, BackColor = UiTheme.Primary, Padding = new Padding(24, 24, 24, 18), Tag = "sidebar" };
         var brand = new Panel { Dock = DockStyle.Top, Height = 132, BackColor = Color.Transparent };
         var cloud = UiTheme.Label("☁", 42, FontStyle.Bold, Color.White); cloud.AutoSize = false; cloud.Location = new Point(8, 4); cloud.Size = new Size(68, 58); cloud.RightToLeft = RightToLeft.No; cloud.TextAlign = ContentAlignment.MiddleCenter;
-        var name = UiTheme.Label("CopyWeb", 20, FontStyle.Bold, Color.White); name.AutoSize = false; name.Location = new Point(82, 8); name.Size = new Size(125, 38); name.RightToLeft = RightToLeft.No; name.TextAlign = ContentAlignment.MiddleLeft;
-        var tagline = UiTheme.Label("دانلود نسخه آفلاین سایت", 9, color: Color.FromArgb(220, 235, 255)); tagline.Location = new Point(82, 48);
+        var name = UiTheme.Label("CopyWeb", 20, FontStyle.Bold, Color.White); name.AutoSize = true; name.Location = new Point(72, 8); name.RightToLeft = RightToLeft.No; name.TextAlign = ContentAlignment.MiddleLeft;
+        var tagline = UiTheme.Label("دانلود نسخه آفلاین سایت", 9, color: Color.FromArgb(220, 235, 255)); tagline.AutoSize = false; tagline.Location = new Point(78, 48); tagline.Size = new Size(150, 24); tagline.RightToLeft = RightToLeft.No;
         brand.Controls.AddRange([cloud, name, tagline]);
         var nav = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 300, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.Transparent, Padding = new Padding(0, 12, 0, 0) };
         var home = NavButton("⌂   شروع", true); home.Click += (_, _) => FocusHome();
-        var projects = NavButton("□   پروژه‌ها", false); projects.Click += (_, _) => ShowProjects();
+        var projects = NavButton("🌐   پروژه‌ها", false); projects.Click += (_, _) => ShowProjects();
         var settings = NavButton("⚙   تنظیمات", false); settings.Click += (_, _) => ShowSettings();
-        var reports = NavButton("▥   گزارش‌ها", false); reports.Click += (_, _) => ShowReports();
+        var reports = NavButton("📊   گزارش‌ها", false); reports.Click += (_, _) => ShowReports();
         var about = NavButton("ⓘ   درباره برنامه", false); about.Click += (_, _) => ShowAbout();
         nav.Controls.AddRange([home, projects, settings, reports, about]);
-        var version = UiTheme.Label("نسخه 1.0.18", 9, color: Color.FromArgb(215, 232, 255)); version.Dock = DockStyle.Bottom; version.TextAlign = ContentAlignment.MiddleCenter; version.Height = 30;
+        var version = UiTheme.Label("نسخه 1.1.2", 9, color: Color.FromArgb(215, 232, 255)); version.Dock = DockStyle.Bottom; version.TextAlign = ContentAlignment.MiddleCenter; version.Height = 30;
         sidebar.Controls.Add(version); sidebar.Controls.Add(nav); sidebar.Controls.Add(brand);
         return sidebar;
     }
 
     private static Button NavButton(string text, bool selected)
     {
-        var button = UiTheme.Button(text, selected ? Color.FromArgb(67, 140, 235) : Color.FromArgb(47, 128, 237));
+        var button = UiTheme.Button(text, selected ? Color.FromArgb(112, 130, 158) : Color.FromArgb(101, 119, 147));
         button.Tag = "sidebar-button";
         button.Width = 222; button.Height = 48; button.Margin = new Padding(0, 0, 0, 10); button.TextAlign = ContentAlignment.MiddleLeft; button.Padding = new Padding(18, 0, 12, 0); button.Font = new Font(UiTheme.NormalFont, FontStyle.Bold);
         return button;
@@ -231,6 +243,16 @@ public partial class MainForm : Form
         input.Padding = new Padding(6, 2, 6, 2);
     }
 
+    private void UpdateProxyControls()
+    {
+        var enabled = _proxyEnabled.Checked;
+        _proxyType.Enabled = enabled;
+        _proxyAddress.Enabled = enabled;
+        _proxyPort.Enabled = enabled;
+        _proxyUser.Enabled = enabled;
+        _proxyPassword.Enabled = enabled;
+    }
+
     private void LoadSavedSettings()
     {
         var settings = AppSettingsStore.Load();
@@ -243,6 +265,8 @@ public partial class MainForm : Form
         _timeoutSeconds.Value = Math.Clamp(settings.RequestTimeoutSeconds, (int)_timeoutSeconds.Minimum, (int)_timeoutSeconds.Maximum);
         _retryCount.Value = Math.Clamp(settings.RetryCount, (int)_retryCount.Minimum, (int)_retryCount.Maximum);
         _requestDelay.Value = Math.Clamp(settings.DelayMilliseconds, (int)_requestDelay.Minimum, (int)_requestDelay.Maximum);
+        _concurrency.Value = Math.Clamp(settings.MaxConcurrentDownloads, (int)_concurrency.Minimum, (int)_concurrency.Maximum);
+        _minFreeDisk.Value = Math.Clamp(settings.MinimumFreeDiskSpaceMb, (long)_minFreeDisk.Minimum, (long)_minFreeDisk.Maximum);
         _sitemaps.Checked = settings.ReadSitemaps;
         _canonical.Checked = settings.FollowCanonicalLinks;
     }
@@ -307,6 +331,12 @@ public partial class MainForm : Form
         form.ShowDialog(this);
     }
 
+    private void ShowTutorial()
+    {
+        using var form = new TutorialForm();
+        form.ShowDialog(this);
+    }
+
     private void ApplyThemeToControls()
     {
         BackColor = UiTheme.Background;
@@ -349,7 +379,7 @@ public partial class MainForm : Form
                 control.ForeColor = Color.White;
                 break;
             case "accent-button":
-                control.BackColor = Color.FromArgb(5, 150, 105);
+                control.BackColor = UiTheme.Accent;
                 control.ForeColor = Color.White;
                 break;
             case "danger-button":
@@ -388,6 +418,19 @@ public partial class MainForm : Form
     {
         using var dialog = new FolderBrowserDialog { Description = "پوشه ذخیره نسخه آفلاین را انتخاب کنید" };
         if (dialog.ShowDialog(this) == DialogResult.OK) _output.Text = dialog.SelectedPath;
+    }
+
+    private void PasteUrlFromClipboard()
+    {
+        if (!Clipboard.ContainsText())
+        {
+            MessageBox.Show(this, "متن معتبری در Clipboard وجود ندارد.", "چسباندن آدرس", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        _url.Text = Clipboard.GetText().Trim();
+        _url.Focus();
+        _url.SelectionStart = _url.TextLength;
+        _url.SelectionLength = 0;
     }
 
     private async void StartClick(object? sender, EventArgs e)
@@ -447,12 +490,12 @@ public partial class MainForm : Form
             _progress.Value = totalPercent;
             _stats.Text = $"پیشرفت کل صفحات: {p.Completed} از {p.Total} ({totalPercent}%)";
             var successful = Math.Max(0, p.Completed - p.Failed);
-            _counts.Text = $"صفحات: {p.Total} | دانلودشده: {successful} | ناموفق: {p.Failed}";
+            _counts.Text = $"کل {p.Total} | موفق {successful} | خطا {p.Failed} | فعال {p.ActiveDownloads} | صف {p.Queued} | آزاد {FormatBytes(p.FreeDiskBytes)}";
             UpdateSpeedAndEta(p.Completed, p.Total, p.TotalBytesDownloaded);
             var severity = p.Message.Contains("ناموفق", StringComparison.OrdinalIgnoreCase) ? ActivitySeverity.Warning : ActivitySeverity.Info;
             AppendLog($"{p.CurrentPercent}% | {p.Message}", severity, p.CurrentUrl);
         });
-        await downloader.DownloadAsync(root, links, output, downloadProgress, _cts!.Token, (int)_requestDelay.Value);
+        await downloader.DownloadAsync(root, links, output, downloadProgress, _cts!.Token, (int)_requestDelay.Value, (int)_concurrency.Value, (long)_minFreeDisk.Value);
     }
 
     private CrawlOptions BuildCrawlOptions() => new()
@@ -482,6 +525,8 @@ public partial class MainForm : Form
         settings.RequestTimeoutSeconds = (int)_timeoutSeconds.Value;
         settings.RetryCount = (int)_retryCount.Value;
         settings.DelayMilliseconds = (int)_requestDelay.Value;
+        settings.MaxConcurrentDownloads = (int)_concurrency.Value;
+        settings.MinimumFreeDiskSpaceMb = (long)_minFreeDisk.Value;
         settings.ReadSitemaps = _sitemaps.Checked;
         settings.FollowCanonicalLinks = _canonical.Checked;
         AppSettingsStore.Save(settings);
@@ -502,7 +547,45 @@ public partial class MainForm : Form
         });
     }
 
+    private void SetProxyTestColor(Color color)
+    {
+        _testProxy.BackColor = color;
+        _testProxy.FlatAppearance.MouseOverBackColor = ControlPaint.Light(color, 0.08F);
+        _testProxy.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(color, 0.08F);
+    }
+
     private async void TestProxyClick(object? sender, EventArgs e)
+    {
+        if (!_proxyEnabled.Checked)
+        {
+            SetProxyTestColor(Color.FromArgb(210, 222, 238));
+            MessageBox.Show(this, "ابتدا گزینه فعال را برای پروکسی انتخاب کنید.", "تست پروکسی", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        _testProxy.Enabled = false;
+        SetProxyTestColor(Color.FromArgb(210, 222, 238));
+        try
+        {
+            using var session = CreateSession();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var response = await session.GetAsync(new Uri("https://api.ipify.org?format=json"), timeout.Token);
+            response.EnsureSuccessStatusCode();
+            SetProxyTestColor(Color.FromArgb(137, 177, 153));
+            MessageBox.Show(this, $"پروکسی با موفقیت پاسخ داد.\n{await response.Content.ReadAsStringAsync(timeout.Token)}", "تست موفق", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            SetProxyTestColor(Color.FromArgb(210, 222, 238));
+            MessageBox.Show(this, $"تست پروکسی ناموفق بود:\n{ex.Message}", "خطای پروکسی", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            _testProxy.Enabled = true;
+        }
+    }
+
+    private async void TestProxyClickLegacy(object? sender, EventArgs e)
     {
         if (!_proxyEnabled.Checked) { MessageBox.Show(this, "ابتدا گزینه فعال را برای پروکسی انتخاب کنید.", "تست پروکسی", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
         try { using var session = CreateSession(); using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15)); using var response = await session.GetAsync(new Uri("https://api.ipify.org?format=json"), timeout.Token); response.EnsureSuccessStatusCode(); MessageBox.Show(this, $"پروکسی با موفقیت پاسخ داد.\n{await response.Content.ReadAsStringAsync(timeout.Token)}", "تست موفق", MessageBoxButtons.OK, MessageBoxIcon.Information); }

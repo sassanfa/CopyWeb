@@ -27,7 +27,7 @@ public sealed class CaptchaForm : Form
         var continueButton = UiTheme.Button("ادامه دانلود");
         continueButton.Width = 145;
         continueButton.Click += ContinueClick;
-        var continueAllButton = UiTheme.Button("تأیید همه صفحات", Color.FromArgb(5, 150, 105));
+        var continueAllButton = UiTheme.Button("تأیید همه صفحات", UiTheme.Accent);
         continueAllButton.Width = 155;
         continueAllButton.Click += (_, _) => { ApproveAllPages = true; ContinueClick(null, EventArgs.Empty); };
         var cancelButton = UiTheme.Button("لغو", UiTheme.Muted);

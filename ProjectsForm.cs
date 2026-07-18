@@ -48,6 +48,9 @@ public sealed class ProjectsForm : Form
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "site", HeaderText = "سایت", DataPropertyName = nameof(ProjectEntry.Site), Width = 280 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "date", HeaderText = "آخرین ذخیره", DataPropertyName = nameof(ProjectEntry.Date), Width = 150 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "links", HeaderText = "تعداد لینک", DataPropertyName = nameof(ProjectEntry.LinkCount), Width = 100 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "storage", HeaderText = "پوشه ذخیره‌سازی", DataPropertyName = nameof(ProjectEntry.StoragePath), Width = 300 });
+        _grid.Columns.Add(new DataGridViewButtonColumn { Name = "delete", HeaderText = "", Text = "X", UseColumnTextForButtonValue = true, Width = 48, FlatStyle = FlatStyle.Flat });
+        _grid.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && _grid.Columns[e.ColumnIndex].Name == "delete") DeleteProject(_grid.Rows[e.RowIndex].DataBoundItem as ProjectEntry); };
         _grid.CellDoubleClick += (_, _) => ViewLinks();
         card.Controls.Add(_grid);
         _empty.Dock = DockStyle.Fill;
@@ -74,7 +77,7 @@ public sealed class ProjectsForm : Form
         folder.Tag = "secondary-button";
         folder.Width = 130;
         folder.Click += (_, _) => OpenFolder();
-        var resume = UiTheme.Button("ادامه دانلود", Color.FromArgb(5, 150, 105));
+        var resume = UiTheme.Button("ادامه دانلود", UiTheme.Accent);
         resume.Tag = "accent-button";
         resume.Width = 130;
         resume.Click += (_, _) => ResumeProject();
@@ -141,6 +144,7 @@ public sealed class ProjectsForm : Form
                     project.RootUrl,
                     File.GetLastWriteTime(file).ToString("yyyy-MM-dd HH:mm"),
                     project.Links.Count,
+                    Path.GetDirectoryName(file) ?? string.Empty,
                     file));
             }
             catch
@@ -188,5 +192,34 @@ public sealed class ProjectsForm : Form
         Close();
     }
 
-    private sealed record ProjectEntry(string Site, string Date, int LinkCount, string FileName);
+    private void DeleteProject(ProjectEntry? entry)
+    {
+        if (entry is null) return;
+        var folder = Path.GetDirectoryName(entry.FileName);
+        if (string.IsNullOrWhiteSpace(folder) || !File.Exists(entry.FileName)) return;
+        var answer = MessageBox.Show(this,
+            $"پروژه و تمام فایل‌های پوشه زیر حذف شود؟\n{folder}\n\nاین کار قابل بازگشت نیست.",
+            "حذف پروژه", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+        if (answer != DialogResult.Yes) return;
+        try
+        {
+            var defaultProjectsRoot = Path.GetFullPath(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CopyWeb"));
+            var normalizedFolder = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (Directory.Exists(folder) && !normalizedFolder.Equals(defaultProjectsRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+                Directory.Delete(folder, true);
+            else if (File.Exists(entry.FileName))
+                File.Delete(entry.FileName);
+            ProjectStorage.Forget(entry.FileName);
+            _entries.Remove(entry);
+            _grid.DataSource = null;
+            _grid.DataSource = _entries.ToList();
+            _empty.Visible = _entries.Count == 0;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"حذف پروژه انجام نشد:\n{ex.Message}", "خطای حذف", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private sealed record ProjectEntry(string Site, string Date, int LinkCount, string StoragePath, string FileName);
 }

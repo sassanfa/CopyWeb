@@ -69,7 +69,11 @@ public sealed record DownloadProgress(
     long BytesDownloaded = 0,
     long TotalBytes = 0,
     int Failed = 0,
-    long TotalBytesDownloaded = 0);
+    long TotalBytesDownloaded = 0,
+    int Queued = 0,
+    int ActiveDownloads = 0,
+    long TotalBytesExpected = 0,
+    long FreeDiskBytes = 0);
 
 public enum ProxyKind
 {
