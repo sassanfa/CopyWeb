@@ -1,49 +1,60 @@
 # CopyWeb
 
-CopyWeb is a Windows Forms application for creating an offline copy of a website.
-CopyWeb is a modern Windows Forms application for creating an offline copy of a website and its related internal pages.
+CopyWeb یک برنامه‌ی Windows Forms برای تهیه‌ی نسخه‌ی آفلاین از سایت‌ها و صفحات داخلی مرتبط آن‌هاست.
 
-> نسخه فارسی در ادامه آمده است.
+![Version](https://img.shields.io/badge/version-1.0.18-2563EB)
+![Platform](https://img.shields.io/badge/platform-Windows-0F766E)
 
-## What it does
+**Created by:** SassanFa — [Sassanfa@gmail.com](mailto:Sassanfa@gmail.com)  
+**Version:** 1.0.18  
+**Release date:** 2026-07-18
 
-CopyWeb starts from a URL, discovers links that belong to the selected site, removes unrelated external links, and downloads the selected pages and their resources into a structured local project.
+## قابلیت‌ها
 
-- Crawls pages with configurable maximum depth and page limit
-- Keeps links within the selected domain and optionally its subdomains
-- Respects `robots.txt` when enabled
-- Downloads pages and rewrites local links for offline browsing
-- Stores images in `Img`, stylesheets in `CSS`, JavaScript in `JS`, fonts in `Fonts`, and other resources in `Files`
-- Shows the current URL and per-file progress percentage
-- Supports pause, stop, and resume from the last saved checkpoint
-- Uses the same proxy session for link discovery, page downloads, and resources
-- Includes a proxy connection test, optional authentication, and CAPTCHA handoff to the user
-- Saves projects, activity logs, reports, and application settings
-- Includes theme presets and custom colors
+- دریافت سایت از یک URL و شناسایی صفحات داخلی همان دامنه
+- محدودکردن عمق بررسی، تعداد صفحات و زیردامنه‌ها
+- پشتیبانی از `robots.txt`، Sitemap و لینک‌های Canonical
+- حذف لینک‌های خارجی و فیلترکردن URLهای غیرصفحه مانند تصویر، CSS، JS و ویدئو از فهرست صفحات
+- نمایش درختی صفحات و منابع با دکمه‌ی `+ / −`
+- نمایش تصاویر، CSS، JavaScript، فونت، رسانه و فایل‌های هر صفحه زیر همان صفحه
+- انتخاب یا لغو انتخاب مستقل هر منبع قبل از دانلود
+- ذخیره‌ی صفحات در `pages` و منابع در پوشه‌های `Img`، `CSS`، `JS`، `Fonts` و `Files`
+- بازنویسی لینک‌های داخلی برای مرور آفلاین
+- پشتیبانی از تصاویر Lazy و `srcset`
+- نمایش URL فعلی، مرحله‌ی عملیات، درصد فایل، درصد کل پروژه و تعداد موفق/ناموفق
+- نمایش سرعت دانلود، حجم دریافت‌شده و زمان تقریبی پایان
+- توقف، ادامه و Resume از checkpointهای اتمیک
+- فیلتر و جست‌وجو بین صفحات و منابع و عملیات گروهی
+- پروکسی HTTP، HTTPS و SOCKS5 با تست اتصال، Timeout، Retry و تأخیر درخواست
+- رمزنگاری نام کاربری و رمز پروکسی با Windows DPAPI
+- پشتیبانی از User-Agent، Header و Cookie سفارشی
+- مدیریت CAPTCHA با نمایش مرورگر و گزینه‌ی «تأیید همه صفحات»
+- گزارش فعالیت با فیلتر موفقیت، اطلاعات، هشدار و خطا
+- خروجی گزارش در TXT، CSV و JSON و ثبت Crash Log
+- حالت تاریک، تم‌های رنگی و تغییر زبان فارسی/انگلیسی بدون Restart
+- ذخیره و مدیریت پروژه‌ها از بخش Projects
 
-## Quick start
+## شروع سریع
 
-1. Open `CopyWeb.slnx` in Visual Studio.
-2. Restore NuGet packages and build the `CopyWeb` project.
-3. Run the application.
-4. Enter the starting URL, choose the depth, page limit, and output folder.
-5. Configure the proxy if required and use **Test Proxy** to verify it.
-6. Start the site scan, review the discovered links, then continue with the download.
+1. فایل `CopyWeb.slnx` را با Visual Studio باز کنید.
+2. بسته‌های NuGet را Restore و پروژه‌ی `CopyWeb` را Build کنید.
+3. برنامه را اجرا کنید.
+4. URL سایت و پوشه‌ی خروجی را وارد کنید.
+5. عمق لینک و حداکثر تعداد صفحات را مشخص کنید.
+6. در صورت نیاز پروکسی را فعال و با **Test Proxy** آزمایش کنید.
+7. روی **شروع بررسی سایت** بزنید.
+8. در پنجره‌ی لینک‌ها، با `+` منابع هر صفحه را باز کنید و موارد دلخواه را انتخاب یا حذف کنید.
+9. روی **دانلود موارد انتخاب‌شده** کلیک کنید.
 
-If a CAPTCHA is detected, CopyWeb pauses the operation and displays the browser view. Solve the CAPTCHA manually and return to the application to continue.
+اگر CAPTCHA شناسایی شود، عملیات متوقف می‌شود. CAPTCHA را در مرورگر داخلی حل کنید و روی **تأیید همه صفحات** بزنید تا در همان عملیات دوباره پنجره‌ی CAPTCHA باز نشود.
 
-## Requirements
+## Resume و پروژه‌های قدیمی
 
-- Windows 10 or later
-- Visual Studio with the .NET Windows Desktop workload
-- .NET 10 SDK for building from source
-- Microsoft WebView2 Runtime for the CAPTCHA browser view
+اطلاعات پروژه و وضعیت دانلود در `links.json` ذخیره می‌شود. برای ادامه‌ی یک عملیات متوقف‌شده، از **Resume Project** یا بخش **Projects** استفاده کنید.
 
-The project targets `net10.0-windows` and uses AngleSharp and Microsoft WebView2 through NuGet.
+ساختار منابع در پروژه‌هایی که قبل از نسخه‌ی 1.0.18 ساخته شده‌اند ذخیره نشده است. برای دیدن درخت منابع، یک‌بار بررسی سایت را با نسخه‌ی جدید انجام دهید.
 
-## Project output
-
-Each downloaded site is saved in the output directory selected by the user:
+## ساختار خروجی
 
 ```text
 ProjectFolder/
@@ -54,54 +65,76 @@ ProjectFolder/
 ├── JS/
 ├── Fonts/
 ├── Files/
-├── links.json          # resume checkpoint and discovered links
-├── activity.log        # detailed application activity
-└── download-log.txt    # download summary
+├── links.json          # checkpoint و فهرست صفحات و منابع
+├── activity.log        # گزارش متنی فعالیت
+├── activity.jsonl      # گزارش ساختاریافته برای فیلتر و خروجی
+└── download-log.txt    # خلاصه‌ی دانلود
 ```
 
-Saved project locations are also indexed under `%AppData%\CopyWeb`, so they can be opened later from the **Projects** section.
+## تنظیمات پروکسی
 
-## Repository layout
+پروکسی انتخاب‌شده برای بررسی لینک‌ها، دانلود صفحات و دریافت منابع استفاده می‌شود و فقط مخصوص یک مرحله نیست.
+
+پروتکل‌های قابل استفاده:
+
+- HTTP
+- HTTPS
+- SOCKS5
+
+اطلاعات ورود پروکسی با Windows DPAPI برای کاربر فعلی ویندوز رمزنگاری می‌شود.
+
+## نیازمندی‌ها
+
+- Windows 10 یا بالاتر
+- Visual Studio با workload مربوط به .NET Desktop
+- .NET 10 SDK برای Build از سورس
+- Microsoft WebView2 Runtime برای CAPTCHA و حالت JavaScript/SPA
+
+پروژه از `AngleSharp` و `Microsoft.Web.WebView2` از طریق NuGet استفاده می‌کند و روی `net10.0-windows` ساخته می‌شود.
+
+## ساخت فایل اجرایی
+
+```powershell
+dotnet publish CopyWeb.csproj `
+  --configuration Release `
+  --runtime win-x64 `
+  --self-contained true `
+  --output bin\Release\net10.0-windows\publish `
+  /p:PublishSingleFile=true `
+  /p:IncludeNativeLibrariesForSelfExtract=true
+```
+
+فایل آیکون برنامه `CopyWeb.ico` است و همراه پروژه در repository قرار دارد.
+
+## ساختار Repository
 
 ```text
 CopyWeb/
-├── Models/             # data models and settings
-├── Services/           # crawler, downloader, proxy session, and storage
-├── MainForm.cs         # main application window
-├── ProjectsForm.cs     # saved projects
-├── ReportsForm.cs      # activity reports
-├── SettingsForm.cs     # theme and application settings
-└── AboutForm.cs        # application information
+├── Models/             # مدل صفحات، منابع و تنظیمات
+├── Services/           # crawler، downloader، proxy و storage
+├── MainForm.cs         # پنجره‌ی اصلی و داشبورد
+├── LinksForm.cs        # صفحات و منابع با نمایش درختی
+├── ProjectsForm.cs     # پروژه‌های ذخیره‌شده
+├── ReportsForm.cs      # گزارش فعالیت
+├── SettingsForm.cs     # تم، زبان و تنظیمات برنامه
+└── AboutForm.cs        # اطلاعات برنامه
 ```
 
-## Notes
+## نکات استفاده
 
-- Use the crawler only for websites that you own or are authorized to archive.
-- Website restrictions, authentication, rate limits, and CAPTCHA challenges may affect the result.
-- A proxy configured in the application is shared by crawling and downloading; it is not a separate download-only option.
+- فقط سایت‌هایی را دانلود کنید که مالک آن هستید یا اجازه‌ی آرشیو آن‌ها را دارید.
+- محدودیت‌های سایت، احراز هویت، Rate Limit و CAPTCHA ممکن است روی نتیجه اثر بگذارد.
+- منابعی که در پنجره‌ی لینک‌ها لغو انتخاب شوند، در صفحه‌ی آفلاین محلی‌سازی نمی‌شوند.
+- پروکسی برنامه در تمام مراحل بررسی و دانلود مشترک است.
 
-## Features
-## About
+## English summary
 
-- Same proxy session for crawling, page downloads, and assets
-- Crawl depth, page limit, subdomain and robots.txt options
-- CAPTCHA handoff to the user through an embedded browser
-- Pause/resume checkpoints using `links.json`
-- Download progress for the current file and total project
-- Assets organized into `Img`, `CSS`, `JS`, `Fonts`, and `Files`
-- Saved projects, activity reports, theme presets, and custom colors
+CopyWeb is a Windows Forms website archiver. It crawls internal pages, filters external and non-page URLs, shows each page’s images/CSS/JavaScript/media in an expandable `+ / −` resource tree, lets the user select resources independently, rewrites links for offline browsing, and supports resume checkpoints, HTTP/HTTPS/SOCKS5 proxies, DPAPI credential protection, CAPTCHA handoff, detailed reports, themes, and Persian/English localization.
+
 **CopyWeb Created by SassanFa**  
-**Version:** 1.0.13  
-**Email:** [Sassanfa@gmail.com](mailto:Sassanfa@gmail.com)
+**Email:** [Sassanfa@gmail.com](mailto:Sassanfa@gmail.com)  
+**Version:** 1.0.18
 
----
+## مجوز و مسئولیت استفاده
 
-## Build
-## معرفی فارسی
-
-Open `CopyWeb.slnx` in Visual Studio with the .NET 10 Windows Desktop workload, then build the `CopyWeb` project.
-CopyWeb یک برنامه‌ی Windows Forms برای تهیه‌ی نسخه‌ی آفلاین از سایت‌هاست. برنامه از آدرس شروع، لینک‌های داخلی مربوط به همان سایت را پیدا می‌کند، لینک‌های خارجی را کنار می‌گذارد و صفحات و منابع سایت را در پوشه‌های مرتب ذخیره می‌کند.
-
-The project targets `net10.0-windows` and uses the AngleSharp and WebView2 NuGet packages.
-امکانات اصلی شامل عمق و سقف تعداد صفحات، رعایت اختیاری `robots.txt`، فیلتر دامنه و زیر‌دامنه، نمایش دقیق URL و درصد پیشرفت، توقف و ادامه‌ی دانلود، ذخیره‌ی checkpoint، تنظیم و تست پروکسی، ورود دستی CAPTCHA، مدیریت پروژه‌ها، گزارش فعالیت و تغییر رنگ محیط برنامه است.
-
+کاربر مسئول رعایت قوانین، مجوز دسترسی و شرایط استفاده‌ی سایت مقصد است. این پروژه برای آرشیو مجاز و استفاده‌ی قانونی ارائه شده است.
