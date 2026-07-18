@@ -1,6 +1,7 @@
 using CopyWeb.Models;
 using CopyWeb.Services;
 using System.ComponentModel;
+using LinkState = CopyWeb.Models.LinkState;
 
 namespace CopyWeb;
 
@@ -10,6 +11,7 @@ public sealed class LinksForm : Form
     private BindingList<DownloadItem> _items;
     private readonly DataGridView _grid = new();
     private readonly TextBox _search = new();
+    private readonly ComboBox _stateFilter = new();
     private readonly Label _count = UiTheme.Label(string.Empty, 9, color: UiTheme.Muted);
 
     public IReadOnlyList<DownloadItem> Items => _items.ToList();
@@ -28,6 +30,7 @@ public sealed class LinksForm : Form
 
         BuildUi();
         BindGrid(_items);
+        Localization.Apply(this, AppSettingsStore.Load().Language);
     }
 
     private void BuildUi()
@@ -41,7 +44,13 @@ public sealed class LinksForm : Form
         _search.Height = 36;
         _search.Location = new Point(24, 70);
         _search.TextChanged += (_, _) => ApplyFilter();
-        header.Controls.AddRange([title, _count, _search]);
+        _stateFilter.DropDownStyle = ComboBoxStyle.DropDownList;
+        _stateFilter.Items.AddRange(["همه وضعیت‌ها", "در انتظار", "موفق", "خطا", "رد شده"]);
+        _stateFilter.SelectedIndex = 0;
+        _stateFilter.Width = 145;
+        _stateFilter.Location = new Point(420, 70);
+        _stateFilter.SelectedIndexChanged += (_, _) => ApplyFilter();
+        header.Controls.AddRange([title, _count, _search, _stateFilter]);
 
         _grid.Dock = DockStyle.Fill;
         _grid.BackgroundColor = Color.White;
@@ -75,9 +84,10 @@ public sealed class LinksForm : Form
         var all = UiTheme.Button("انتخاب همه", Color.FromArgb(71, 85, 105)); all.Width = 115; all.Click += (_, _) => SetAll(true);
         var none = UiTheme.Button("لغو انتخاب", Color.FromArgb(100, 116, 139)); none.Width = 115; none.Click += (_, _) => SetAll(false);
         var remove = UiTheme.Button("حذف ردیف", UiTheme.Danger); remove.Width = 110; remove.Click += RemoveRows;
+        var removeFailed = UiTheme.Button("حذف ناموفق‌ها", Color.FromArgb(185, 28, 28)); removeFailed.Width = 130; removeFailed.Click += (_, _) => RemoveFailed();
         var save = UiTheme.Button("ذخیره لیست", Color.FromArgb(5, 150, 105)); save.Width = 115; save.Click += SaveClick;
         var load = UiTheme.Button("بارگذاری لیست", Color.FromArgb(14, 116, 144)); load.Width = 130; load.Click += LoadClick;
-        bottom.Controls.AddRange([download, all, none, remove, save, load]);
+        bottom.Controls.AddRange([download, all, none, removeFailed, remove, save, load]);
 
         Controls.Add(_grid);
         Controls.Add(bottom);
@@ -93,11 +103,7 @@ public sealed class LinksForm : Form
     private void ApplyFilter()
     {
         _grid.EndEdit();
-        var term = _search.Text.Trim();
-        if (term.Length == 0) BindGrid(_items);
-        else BindGrid(new BindingList<DownloadItem>(_items.Where(x =>
-            x.Url.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-            x.Title.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList()));
+        BindGrid(new BindingList<DownloadItem>(_items.Where(MatchesFilter).ToList()));
     }
 
     private void SetAll(bool value)
@@ -112,6 +118,26 @@ public sealed class LinksForm : Form
     {
         var selected = _grid.SelectedRows.Cast<DataGridViewRow>().Select(x => x.DataBoundItem).OfType<DownloadItem>().ToList();
         foreach (var item in selected) _items.Remove(item);
+        ApplyFilter();
+    }
+
+    private bool MatchesFilter(DownloadItem item)
+    {
+        var term = _search.Text.Trim();
+        var stateMatches = _stateFilter.SelectedIndex switch
+        {
+            1 => item.State is LinkState.Pending or LinkState.Selected or LinkState.Downloading,
+            2 => item.State == LinkState.Downloaded,
+            3 => item.State == LinkState.Failed,
+            4 => item.State == LinkState.Skipped,
+            _ => true
+        };
+        return stateMatches && (term.Length == 0 || item.Url.Contains(term, StringComparison.OrdinalIgnoreCase) || item.Title.Contains(term, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void RemoveFailed()
+    {
+        foreach (var item in _items.Where(x => x.State == LinkState.Failed).ToList()) _items.Remove(item);
         ApplyFilter();
     }
 

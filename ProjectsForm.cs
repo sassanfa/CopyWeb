@@ -21,6 +21,7 @@ public sealed class ProjectsForm : Form
         RightToLeft = RightToLeft.Yes;
         BackColor = UiTheme.Background;
         BuildUi();
+        Localization.Apply(this, AppSettingsStore.Load().Language);
         Shown += async (_, _) => await LoadProjectsAsync();
     }
 

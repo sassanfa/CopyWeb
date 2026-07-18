@@ -42,6 +42,7 @@ public sealed class CaptchaForm : Form
 
         Controls.Add(_browser);
         Controls.Add(top);
+        Services.Localization.Apply(this, Services.AppSettingsStore.Load().Language);
         Shown += InitializeBrowserAsync;
     }
 

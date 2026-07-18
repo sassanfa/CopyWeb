@@ -1,6 +1,7 @@
 using AngleSharp.Html.Parser;
 using CopyWeb.Models;
 using System.Net;
+using System.Xml.Linq;
 using LinkState = CopyWeb.Models.LinkState;
 
 namespace CopyWeb.Services;
@@ -17,7 +18,8 @@ public sealed class SiteCrawler(SiteSession session)
         IProgress<CrawlProgress>? progress,
         CancellationToken token,
         IReadOnlyCollection<DownloadItem>? resumeItems = null,
-        Func<IReadOnlyCollection<DownloadItem>, Task>? checkpoint = null)
+        Func<IReadOnlyCollection<DownloadItem>, Task>? checkpoint = null,
+        Func<Uri, CancellationToken, Task<string?>>? renderHandler = null)
     {
         var found = new Dictionary<string, DownloadItem>(StringComparer.OrdinalIgnoreCase);
         var queue = new Queue<(Uri Uri, int Depth)>();
@@ -37,6 +39,16 @@ public sealed class SiteCrawler(SiteSession session)
         {
             found[rootUri.AbsoluteUri] = new DownloadItem { Url = rootUri.AbsoluteUri, Depth = 0 };
             queue.Enqueue((rootUri, 0));
+        }
+
+        if (options.ReadSitemaps)
+        {
+            foreach (var sitemapPage in await ReadSitemapPagesAsync(root, token))
+            {
+                if (found.Count >= options.MaxPages || !UrlTools.IsInternal(sitemapPage, root, options.IncludeSubdomains) || found.ContainsKey(sitemapPage.AbsoluteUri)) continue;
+                found[sitemapPage.AbsoluteUri] = new DownloadItem { Url = sitemapPage.AbsoluteUri, Depth = 1, State = LinkState.Pending };
+                queue.Enqueue((sitemapPage, 1));
+            }
         }
 
         var processed = 0;
@@ -72,10 +84,25 @@ public sealed class SiteCrawler(SiteSession session)
                 }
 
                 var html = await response.Content.ReadAsStringAsync(token);
+                if (options.RenderJavaScript && renderHandler is not null)
+                {
+                    var rendered = await renderHandler(current, token);
+                    if (!string.IsNullOrWhiteSpace(rendered)) html = rendered;
+                }
                 var document = await _parser.ParseDocumentAsync(html, token);
                 item.Title = document.Title?.Trim() ?? string.Empty;
                 item.State = LinkState.Crawled;
                 processed++;
+
+                if (options.FollowCanonicalLinks)
+                {
+                    var canonical = UrlTools.NormalizePageUrl(current, document.QuerySelector("link[rel~='canonical']")?.GetAttribute("href"));
+                    if (canonical is not null && UrlTools.IsInternal(canonical, root, options.IncludeSubdomains) && !found.ContainsKey(canonical.AbsoluteUri) && found.Count < options.MaxPages)
+                    {
+                        found[canonical.AbsoluteUri] = new DownloadItem { Url = canonical.AbsoluteUri, Depth = depth, State = LinkState.Pending };
+                        queue.Enqueue((canonical, depth));
+                    }
+                }
 
                 if (depth >= options.MaxDepth) continue;
                 foreach (var anchor in document.QuerySelectorAll("a[href]"))
@@ -165,6 +192,44 @@ public sealed class SiteCrawler(SiteSession session)
         }
         catch { }
         return rules;
+    }
+
+    private async Task<List<Uri>> ReadSitemapPagesAsync(Uri root, CancellationToken token)
+    {
+        var result = new List<Uri>();
+        var sitemapUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            new Uri(root.GetLeftPart(UriPartial.Authority) + "/sitemap.xml").AbsoluteUri
+        };
+        var pendingSitemaps = new Queue<string>(sitemapUrls);
+        while (pendingSitemaps.Count > 0)
+        {
+            var sitemapUrl = pendingSitemaps.Dequeue();
+            try
+            {
+                using var response = await _session.GetAsync(new Uri(sitemapUrl), token);
+                if (!response.IsSuccessStatusCode) continue;
+                var xml = await response.Content.ReadAsStringAsync(token);
+                var document = XDocument.Parse(xml, LoadOptions.PreserveWhitespace);
+                foreach (var loc in document.Descendants().Where(x => x.Name.LocalName.Equals("loc", StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (Uri.TryCreate(loc.Value.Trim(), UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https")
+                    {
+                        if (document.Root?.Name.LocalName.Equals("sitemapindex", StringComparison.OrdinalIgnoreCase) == true)
+                        {
+                            if (sitemapUrls.Add(uri.AbsoluteUri)) pendingSitemaps.Enqueue(uri.AbsoluteUri);
+                        }
+                        else if (!result.Any(x => x.AbsoluteUri.Equals(uri.AbsoluteUri, StringComparison.OrdinalIgnoreCase)))
+                            result.Add(uri);
+                    }
+                }
+            }
+            catch
+            {
+                // A missing or malformed sitemap should not prevent normal crawling.
+            }
+        }
+        return result;
     }
 
     private static bool IsDisallowed(Uri uri, List<string> rules) =>

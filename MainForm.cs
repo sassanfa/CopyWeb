@@ -1,6 +1,7 @@
 using CopyWeb.Models;
 using CopyWeb.Services;
 using LinkState = CopyWeb.Models.LinkState;
+using System.Diagnostics;
 using System.Text;
 
 namespace CopyWeb;
@@ -13,22 +14,32 @@ public partial class MainForm : Form
     private readonly NumericUpDown _maxPages = new();
     private readonly CheckBox _subdomains = new();
     private readonly CheckBox _robots = new();
+    private readonly CheckBox _sitemaps = new();
+    private readonly CheckBox _canonical = new();
     private readonly CheckBox _proxyEnabled = new();
+    private readonly ComboBox _proxyType = new();
     private readonly TextBox _proxyAddress = new();
     private readonly TextBox _proxyPort = new();
     private readonly TextBox _proxyUser = new();
     private readonly TextBox _proxyPassword = new();
+    private readonly NumericUpDown _timeoutSeconds = new();
+    private readonly NumericUpDown _retryCount = new();
+    private readonly NumericUpDown _requestDelay = new();
     private readonly ProgressBar _progress = new();
     private readonly ProgressBar _fileProgress = new();
     private readonly Label _status = UiTheme.Label("آماده شروع", 9, color: UiTheme.Muted);
     private readonly Label _currentFile = UiTheme.Label("فایل فعلی: -", 9, color: UiTheme.Muted);
     private readonly Label _stats = UiTheme.Label("هنوز عملیاتی انجام نشده است", 10, FontStyle.Bold);
+    private readonly Label _counts = UiTheme.Label("صفحات: ۰ | دانلودشده: ۰ | ناموفق: ۰", 9, color: UiTheme.Muted);
+    private readonly Label _speed = UiTheme.Label("سرعت: -", 9, color: UiTheme.Muted);
+    private readonly Label _eta = UiTheme.Label("زمان باقی‌مانده: -", 9, color: UiTheme.Muted);
     private readonly RichTextBox _log = new();
     private readonly Button _start = UiTheme.Button("شروع بررسی سایت");
     private readonly Button _resume = UiTheme.Button("ادامه پروژه", Color.FromArgb(5, 150, 105));
     private readonly Button _stop = UiTheme.Button("توقف و ذخیره", UiTheme.Danger);
     private CancellationTokenSource? _cts;
     private string? _activeLogPath;
+    private Stopwatch? _operationClock;
 
     static MainForm()
     {
@@ -46,6 +57,7 @@ public partial class MainForm : Form
         BackColor = UiTheme.Background;
         InitializeComponent();
         BuildUi();
+        Localization.Apply(this, AppSettingsStore.Load().Language);
     }
 
     private void BuildUi()
@@ -97,12 +109,13 @@ public partial class MainForm : Form
         var info = UiTheme.Card(); info.Dock = DockStyle.Fill; info.Margin = new Padding(0, 14, 0, 0);
         var infoTitle = UiTheme.Label("اطلاعات پروژه", 12, FontStyle.Bold); infoTitle.Location = new Point(22, 18);
         _status.Location = new Point(22, 55); _currentFile.Location = new Point(22, 86); _stats.Location = new Point(22, 122);
-        _progress.Location = new Point(22, 164); _progress.Width = 242; _progress.Height = 20;
-        _fileProgress.Location = new Point(22, 204); _fileProgress.Width = 242; _fileProgress.Height = 20;
-        info.Controls.AddRange([infoTitle, _status, _currentFile, _stats, _progress, _fileProgress]);
+        _counts.Location = new Point(22, 150); _speed.Location = new Point(22, 176); _eta.Location = new Point(22, 202);
+        _progress.Location = new Point(22, 238); _progress.Width = 242; _progress.Height = 20;
+        _fileProgress.Location = new Point(22, 278); _fileProgress.Width = 242; _fileProgress.Height = 20;
+        info.Controls.AddRange([infoTitle, _status, _currentFile, _stats, _counts, _speed, _eta, _progress, _fileProgress]);
         rightColumn.Controls.Add(info); rightColumn.Controls.Add(operations);
 
-        var settings = UiTheme.Card(); settings.Dock = DockStyle.Top; settings.Height = 300;
+        var settings = UiTheme.Card(); settings.Dock = DockStyle.Top; settings.Height = 342;
         var settingsTitle = UiTheme.Label("تنظیمات دانلود", 13, FontStyle.Bold); settingsTitle.Location = new Point(22, 18);
         var urlLabel = UiTheme.Label("آدرس سایت", 10, FontStyle.Bold); urlLabel.Location = new Point(22, 52);
         ConfigureInput(_url); _url.PlaceholderText = "https://example.com"; _url.Multiline = false; _url.AutoSize = false; _url.Height = 30; _url.Location = new Point(22, 125); _url.Width = 460;
@@ -113,16 +126,26 @@ public partial class MainForm : Form
         _depth.Minimum = 0; _depth.Maximum = 20; _depth.Value = 3; _depth.Width = 130; _depth.Location = new Point(172, 223);
         _subdomains.Text = "شامل زیردامنه‌ها"; _subdomains.Checked = true; _subdomains.AutoSize = true; _subdomains.Location = new Point(322, 228);
         _robots.Text = "رعایت robots.txt"; _robots.Checked = true; _robots.AutoSize = true; _robots.Location = new Point(440, 228);
-        settings.Controls.AddRange([settingsTitle, urlLabel, _url, urlLine, maxLabel, _maxPages, depthLabel, _depth, _subdomains, _robots]);
+        _sitemaps.Text = "خواندن Sitemap"; _sitemaps.Checked = true; _sitemaps.AutoSize = true; _sitemaps.Location = new Point(22, 270);
+        _canonical.Text = "پیروی از Canonical"; _canonical.Checked = true; _canonical.AutoSize = true; _canonical.Location = new Point(160, 270);
+        settings.Controls.AddRange([settingsTitle, urlLabel, _url, urlLine, maxLabel, _maxPages, depthLabel, _depth, _subdomains, _robots, _sitemaps, _canonical]);
 
-        var proxy = UiTheme.Card(); proxy.Dock = DockStyle.Top; proxy.Height = 142;
+        var proxy = UiTheme.Card(); proxy.Dock = DockStyle.Top; proxy.Height = 202;
         var proxyTitle = UiTheme.Label("احراز هویت پروکسی (اختیاری)", 12, FontStyle.Bold); proxyTitle.Location = new Point(22, 16);
         _proxyEnabled.Text = "فعال"; _proxyEnabled.AutoSize = true; _proxyEnabled.Location = new Point(235, 19);
-        ConfigureInput(_proxyAddress); _proxyAddress.PlaceholderText = "دامنه پروکسی"; _proxyAddress.Width = 130; _proxyAddress.Location = new Point(22, 58);
-        ConfigureInput(_proxyPort); _proxyPort.PlaceholderText = "پورت"; _proxyPort.Width = 65; _proxyPort.Location = new Point(162, 58);
-        ConfigureInput(_proxyUser); _proxyUser.PlaceholderText = "نام کاربری"; _proxyUser.Width = 130; _proxyUser.Location = new Point(237, 58);
-        ConfigureInput(_proxyPassword); _proxyPassword.PlaceholderText = "رمز عبور"; _proxyPassword.Width = 105; _proxyPassword.UseSystemPasswordChar = true; _proxyPassword.Location = new Point(377, 58);
-        proxy.Controls.AddRange([proxyTitle, _proxyEnabled, _proxyAddress, _proxyPort, _proxyUser, _proxyPassword]);
+        _proxyType.DropDownStyle = ComboBoxStyle.DropDownList; _proxyType.Items.AddRange(["HTTP", "HTTPS", "SOCKS5"]); _proxyType.SelectedIndex = 0; _proxyType.Width = 95; _proxyType.Location = new Point(22, 58);
+        ConfigureInput(_proxyAddress); _proxyAddress.PlaceholderText = "آدرس پروکسی"; _proxyAddress.Width = 125; _proxyAddress.Location = new Point(125, 58);
+        ConfigureInput(_proxyPort); _proxyPort.PlaceholderText = "پورت"; _proxyPort.Width = 58; _proxyPort.Location = new Point(258, 58);
+        ConfigureInput(_proxyUser); _proxyUser.PlaceholderText = "نام کاربری"; _proxyUser.Width = 104; _proxyUser.Location = new Point(324, 58);
+        ConfigureInput(_proxyPassword); _proxyPassword.PlaceholderText = "رمز عبور"; _proxyPassword.Width = 104; _proxyPassword.UseSystemPasswordChar = true; _proxyPassword.Location = new Point(436, 58);
+        var timeoutLabel = UiTheme.Label("Timeout (ثانیه)", 8, color: UiTheme.Muted); timeoutLabel.Location = new Point(22, 108);
+        _timeoutSeconds.Minimum = 5; _timeoutSeconds.Maximum = 600; _timeoutSeconds.Value = 45; _timeoutSeconds.Width = 95; _timeoutSeconds.Location = new Point(22, 132);
+        var retryLabel = UiTheme.Label("تلاش مجدد", 8, color: UiTheme.Muted); retryLabel.Location = new Point(130, 108);
+        _retryCount.Minimum = 0; _retryCount.Maximum = 10; _retryCount.Value = 2; _retryCount.Width = 75; _retryCount.Location = new Point(130, 132);
+        var delayLabel = UiTheme.Label("تأخیر درخواست (ms)", 8, color: UiTheme.Muted); delayLabel.Location = new Point(220, 108);
+        _requestDelay.Minimum = 0; _requestDelay.Maximum = 60000; _requestDelay.Value = 150; _requestDelay.Width = 120; _requestDelay.Location = new Point(220, 132);
+        var proxyHint = UiTheme.Label("HTTP / HTTPS / SOCKS5 — رمز عبور با Windows DPAPI ذخیره می‌شود.", 8, color: UiTheme.Muted); proxyHint.Location = new Point(22, 174);
+        proxy.Controls.AddRange([proxyTitle, _proxyEnabled, _proxyType, _proxyAddress, _proxyPort, _proxyUser, _proxyPassword, timeoutLabel, _timeoutSeconds, retryLabel, _retryCount, delayLabel, _requestDelay, proxyHint]);
 
         var output = UiTheme.Card(); output.Dock = DockStyle.Top; output.Height = 120;
         var outputTitle = UiTheme.Label("محل ذخیره", 12, FontStyle.Bold); outputTitle.Location = new Point(22, 16);
@@ -137,6 +160,7 @@ public partial class MainForm : Form
         logCard.Controls.AddRange([logTitle, clear, _log]);
         leftColumn.Controls.Add(logCard); leftColumn.Controls.Add(output); leftColumn.Controls.Add(proxy); leftColumn.Controls.Add(settings);
 
+        LoadSavedSettings();
         Controls.Add(root);
     }
 
@@ -180,6 +204,50 @@ public partial class MainForm : Form
         input.Padding = new Padding(6, 2, 6, 2);
     }
 
+    private void LoadSavedSettings()
+    {
+        var settings = AppSettingsStore.Load();
+        _proxyEnabled.Checked = settings.ProxyEnabled;
+        _proxyType.SelectedItem = settings.ProxyKind switch { ProxyKind.Https => "HTTPS", ProxyKind.Socks5 => "SOCKS5", _ => "HTTP" };
+        _proxyAddress.Text = settings.ProxyAddress;
+        _proxyPort.Text = settings.ProxyPort.ToString();
+        _proxyUser.Text = SecureStorage.Unprotect(settings.EncryptedProxyUsername) ?? string.Empty;
+        _proxyPassword.Text = SecureStorage.Unprotect(settings.EncryptedProxyPassword) ?? string.Empty;
+        _timeoutSeconds.Value = Math.Clamp(settings.RequestTimeoutSeconds, (int)_timeoutSeconds.Minimum, (int)_timeoutSeconds.Maximum);
+        _retryCount.Value = Math.Clamp(settings.RetryCount, (int)_retryCount.Minimum, (int)_retryCount.Maximum);
+        _requestDelay.Value = Math.Clamp(settings.DelayMilliseconds, (int)_requestDelay.Minimum, (int)_requestDelay.Maximum);
+        _sitemaps.Checked = settings.ReadSitemaps;
+        _canonical.Checked = settings.FollowCanonicalLinks;
+    }
+
+    private ProxyKind SelectedProxyKind() => _proxyType.SelectedIndex switch
+    {
+        1 => ProxyKind.Https,
+        2 => ProxyKind.Socks5,
+        _ => ProxyKind.Http
+    };
+
+    private ProxySnapshot CurrentProxySnapshot() => new()
+    {
+        Enabled = _proxyEnabled.Checked,
+        Kind = SelectedProxyKind(),
+        Address = _proxyAddress.Text.Trim(),
+        Port = int.TryParse(_proxyPort.Text.Trim(), out var port) ? port : 8080,
+        EncryptedUsername = SecureStorage.Protect(_proxyUser.Text.Trim()),
+        EncryptedPassword = SecureStorage.Protect(_proxyPassword.Text)
+    };
+
+    private void RestoreProxySnapshot(ProxySnapshot? snapshot)
+    {
+        if (snapshot is null) return;
+        _proxyEnabled.Checked = snapshot.Enabled;
+        _proxyType.SelectedItem = snapshot.Kind switch { ProxyKind.Https => "HTTPS", ProxyKind.Socks5 => "SOCKS5", _ => "HTTP" };
+        _proxyAddress.Text = snapshot.Address;
+        _proxyPort.Text = snapshot.Port.ToString();
+        _proxyUser.Text = SecureStorage.Unprotect(snapshot.EncryptedUsername) ?? string.Empty;
+        _proxyPassword.Text = SecureStorage.Unprotect(snapshot.EncryptedPassword) ?? string.Empty;
+    }
+
     private void FocusHome()
     {
         Activate();
@@ -216,6 +284,7 @@ public partial class MainForm : Form
     {
         BackColor = UiTheme.Background;
         ApplyThemeToControl(this, false);
+        Localization.Apply(this, AppSettingsStore.Load().Language);
     }
 
     private static void ApplyThemeToControl(Control control, bool inSidebar)
@@ -303,10 +372,10 @@ public partial class MainForm : Form
         try
         {
             using var session = CreateSession(); var crawler = new SiteCrawler(session);
-            var crawlProgress = new Progress<CrawlProgress>(p => { _status.Text = p.Message; _stats.Text = $"{p.Processed} صفحه بررسی | {p.Discovered} لینک پیدا شد"; AppendLog(p.Message); });
-            var links = await crawler.CrawlAsync(root, new CrawlOptions { MaxDepth = (int)_depth.Value, MaxPages = (int)_maxPages.Value, IncludeSubdomains = _subdomains.Checked, RespectRobotsTxt = _robots.Checked }, ShowCaptchaAsync, crawlProgress, _cts!.Token, checkpoint: found => ProjectStorage.SaveAsync(Path.Combine(_output.Text, "links.json"), root, found));
+            var crawlProgress = new Progress<CrawlProgress>(p => { _status.Text = p.Message; _stats.Text = $"{p.Processed} صفحه بررسی | {p.Discovered} لینک پیدا شد"; _counts.Text = $"صفحات پیدا‌شده: {p.Discovered}"; AppendLog(p.Message); });
+            var links = await crawler.CrawlAsync(root, BuildCrawlOptions(), ShowCaptchaAsync, crawlProgress, _cts!.Token, checkpoint: found => ProjectStorage.SaveAsync(Path.Combine(_output.Text, "links.json"), root, found, CurrentProxySnapshot()), renderHandler: RenderPageAsync);
             using var linksForm = new LinksForm(root, links); if (linksForm.ShowDialog(this) != DialogResult.OK) return;
-            await ProjectStorage.SaveAsync(Path.Combine(_output.Text, "links.json"), root, linksForm.Items, _cts.Token);
+            await ProjectStorage.SaveAsync(Path.Combine(_output.Text, "links.json"), root, linksForm.Items, CurrentProxySnapshot(), _cts.Token);
             await DownloadItemsAsync(session, root, linksForm.Items, _output.Text); CompleteOperation();
         }
         catch (OperationCanceledException) { CancelledOperation(); }
@@ -325,15 +394,15 @@ public partial class MainForm : Form
         try
         {
             var project = await ProjectStorage.LoadAsync(fileName); if (!Uri.TryCreate(project.RootUrl, UriKind.Absolute, out var root)) throw new InvalidDataException("آدرس ریشه پروژه معتبر نیست.");
-            _url.Text = root.AbsoluteUri; _output.Text = Path.GetDirectoryName(fileName) ?? _output.Text; BeginLog(Path.Combine(_output.Text, "activity.log"), append: true); PrepareOperation(); using var session = CreateSession();
+            _url.Text = root.AbsoluteUri; _output.Text = Path.GetDirectoryName(fileName) ?? _output.Text; RestoreProxySnapshot(project.Proxy); BeginLog(Path.Combine(_output.Text, "activity.log"), append: true); PrepareOperation(); using var session = CreateSession();
             var crawlCheckpoint = project.Links.Any(x => x.State is LinkState.Pending or LinkState.Failed or LinkState.Downloading) && !project.Links.Any(x => x.State == LinkState.Downloaded);
             if (crawlCheckpoint)
             {
-                var crawler = new SiteCrawler(session); var crawlProgress = new Progress<CrawlProgress>(p => { _status.Text = p.Message; _stats.Text = $"{p.Processed} صفحه بررسی | {p.Discovered} لینک پیدا شد"; AppendLog(p.Message); });
-                project.Links = await crawler.CrawlAsync(root, new CrawlOptions { MaxDepth = (int)_depth.Value, MaxPages = (int)_maxPages.Value, IncludeSubdomains = _subdomains.Checked, RespectRobotsTxt = _robots.Checked }, ShowCaptchaAsync, crawlProgress, _cts!.Token, project.Links, found => ProjectStorage.SaveAsync(Path.Combine(_output.Text, "links.json"), root, found));
+                var crawler = new SiteCrawler(session); var crawlProgress = new Progress<CrawlProgress>(p => { _status.Text = p.Message; _stats.Text = $"{p.Processed} صفحه بررسی | {p.Discovered} لینک پیدا شد"; _counts.Text = $"صفحات پیدا‌شده: {p.Discovered}"; AppendLog(p.Message); });
+                project.Links = await crawler.CrawlAsync(root, BuildCrawlOptions(), ShowCaptchaAsync, crawlProgress, _cts!.Token, project.Links, found => ProjectStorage.SaveAsync(Path.Combine(_output.Text, "links.json"), root, found, CurrentProxySnapshot()), RenderPageAsync);
             }
             using var linksForm = new LinksForm(root, project.Links); if (linksForm.ShowDialog(this) != DialogResult.OK) return;
-            await ProjectStorage.SaveAsync(Path.Combine(_output.Text, "links.json"), root, linksForm.Items, _cts!.Token); await DownloadItemsAsync(session, root, linksForm.Items, _output.Text); CompleteOperation();
+            await ProjectStorage.SaveAsync(Path.Combine(_output.Text, "links.json"), root, linksForm.Items, CurrentProxySnapshot(), _cts!.Token); await DownloadItemsAsync(session, root, linksForm.Items, _output.Text); CompleteOperation();
         }
         catch (OperationCanceledException) { CancelledOperation(); }
         catch (Exception ex) { FailedOperation(ex); }
@@ -344,16 +413,56 @@ public partial class MainForm : Form
     {
         var downloader = new SiteDownloader(session); var downloadProgress = new Progress<DownloadProgress>(p =>
         {
-            _status.Text = p.Message; _currentFile.Text = $"فایل فعلی: {p.CurrentUrl ?? "-"}"; _fileProgress.Value = Math.Clamp(p.CurrentPercent, 0, 100); _progress.Value = p.Total == 0 ? 100 : Math.Clamp(p.Completed * 100 / p.Total, 0, 100); _stats.Text = $"پیشرفت کل: {p.Completed} از {p.Total} صفحه"; AppendLog($"{p.CurrentPercent}% | {p.Message}");
+            _status.Text = p.Message; _currentFile.Text = $"فایل فعلی ({p.CurrentPercent}%): {p.CurrentUrl ?? "-"}"; _fileProgress.Value = Math.Clamp(p.CurrentPercent, 0, 100); _progress.Value = p.Total == 0 ? 100 : Math.Clamp(p.Completed * 100 / p.Total, 0, 100); _stats.Text = $"پیشرفت کل: {p.Completed} از {p.Total} صفحه"; _counts.Text = $"صفحات: {p.Total} | دانلودشده: {p.Completed} | ناموفق: {p.Failed}"; UpdateSpeedAndEta(p.Completed, p.Total); AppendLog($"{p.CurrentPercent}% | {p.Message}", p.Failed > 0 ? ActivitySeverity.Warning : ActivitySeverity.Info, p.CurrentUrl);
         });
-        await downloader.DownloadAsync(root, links, output, downloadProgress, _cts!.Token);
+        await downloader.DownloadAsync(root, links, output, downloadProgress, _cts!.Token, (int)_requestDelay.Value);
     }
+
+    private CrawlOptions BuildCrawlOptions() => new()
+    {
+        MaxDepth = (int)_depth.Value,
+        MaxPages = (int)_maxPages.Value,
+        IncludeSubdomains = _subdomains.Checked,
+        RespectRobotsTxt = _robots.Checked,
+        ReadSitemaps = _sitemaps.Checked,
+        FollowCanonicalLinks = _canonical.Checked,
+        RenderJavaScript = AppSettingsStore.Load().RenderJavaScript,
+        DelayMilliseconds = (int)_requestDelay.Value
+    };
 
     private SiteSession CreateSession()
     {
-        var port = int.TryParse(_proxyPort.Text.Trim(), out var parsedPort) ? parsedPort : 8080; var address = _proxyAddress.Text.Trim(); if (address.Length > 0 && !address.Contains("://", StringComparison.Ordinal)) address = "http://" + address;
-        if (_proxyEnabled.Checked && (!Uri.TryCreate(address, UriKind.Absolute, out _) || port is < 1 or > 65535)) throw new InvalidOperationException("آدرس یا پورت پروکسی معتبر نیست.");
-        return new SiteSession(new ProxyOptions { Enabled = _proxyEnabled.Checked, Address = address, Port = port, Username = _proxyUser.Text.Trim(), Password = _proxyPassword.Text });
+        var port = int.TryParse(_proxyPort.Text.Trim(), out var parsedPort) ? parsedPort : 8080;
+        var address = _proxyAddress.Text.Trim();
+        if (_proxyEnabled.Checked && (string.IsNullOrWhiteSpace(address) || port is < 1 or > 65535)) throw new InvalidOperationException("آدرس یا پورت پروکسی معتبر نیست.");
+        var settings = AppSettingsStore.Load();
+        settings.ProxyEnabled = _proxyEnabled.Checked;
+        settings.ProxyKind = SelectedProxyKind();
+        settings.ProxyAddress = address;
+        settings.ProxyPort = port;
+        settings.EncryptedProxyUsername = SecureStorage.Protect(_proxyUser.Text.Trim());
+        settings.EncryptedProxyPassword = SecureStorage.Protect(_proxyPassword.Text);
+        settings.RequestTimeoutSeconds = (int)_timeoutSeconds.Value;
+        settings.RetryCount = (int)_retryCount.Value;
+        settings.DelayMilliseconds = (int)_requestDelay.Value;
+        settings.ReadSitemaps = _sitemaps.Checked;
+        settings.FollowCanonicalLinks = _canonical.Checked;
+        AppSettingsStore.Save(settings);
+        return new SiteSession(new ProxyOptions
+        {
+            Enabled = _proxyEnabled.Checked,
+            Address = address,
+            Port = port,
+            Username = _proxyUser.Text.Trim(),
+            Password = _proxyPassword.Text,
+            Kind = SelectedProxyKind(),
+            TimeoutSeconds = (int)_timeoutSeconds.Value,
+            RetryCount = (int)_retryCount.Value,
+            RetryDelayMilliseconds = 750,
+            UserAgent = settings.UserAgent,
+            Headers = settings.CustomHeaders,
+            CookieHeader = settings.CustomCookies
+        });
     }
 
     private async void TestProxyClick(object? sender, EventArgs e)
@@ -363,19 +472,72 @@ public partial class MainForm : Form
         catch (Exception ex) { MessageBox.Show(this, $"تست پروکسی ناموفق بود:\n{ex.Message}", "خطای پروکسی", MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
-    private void PrepareOperation() { _cts = new CancellationTokenSource(); _start.Enabled = false; _resume.Enabled = false; _stop.Enabled = true; _progress.Value = 0; _fileProgress.Value = 0; _log.Clear(); }
-    private void FinishOperation() { _cts?.Dispose(); _cts = null; _start.Enabled = true; _resume.Enabled = true; _stop.Enabled = false; }
-    private void CompleteOperation() { _status.Text = "دانلود با موفقیت پایان یافت"; MessageBox.Show(this, "نسخه آفلاین سایت ذخیره شد.", "پایان عملیات", MessageBoxButtons.OK, MessageBoxIcon.Information); }
-    private void CancelledOperation() { _status.Text = "عملیات متوقف شد؛ وضعیت ذخیره شد"; AppendLog("برای ادامه، روی «ادامه پروژه» کلیک کنید."); }
-    private void FailedOperation(Exception ex) { _status.Text = "خطا"; AppendLog(ex.ToString()); MessageBox.Show(this, ex.Message, "خطا", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+    private async Task<string?> RenderPageAsync(Uri uri, CancellationToken token)
+    {
+        if (!AppSettingsStore.Load().RenderJavaScript) return null;
+        using var browser = new BrowserSnapshotForm(uri);
+        return await browser.CaptureAsync(token);
+    }
+
+    private void PrepareOperation()
+    {
+        _cts = new CancellationTokenSource();
+        _operationClock = Stopwatch.StartNew();
+        _start.Enabled = false; _resume.Enabled = false; _stop.Enabled = true;
+        _progress.Value = 0; _fileProgress.Value = 0;
+        _counts.Text = "صفحات: ۰ | دانلودشده: ۰ | ناموفق: ۰"; _speed.Text = "سرعت: -"; _eta.Text = "زمان باقی‌مانده: -";
+        _log.Clear();
+    }
+
+    private void FinishOperation()
+    {
+        _operationClock?.Stop();
+        _operationClock = null;
+        _cts?.Dispose(); _cts = null;
+        _start.Enabled = true; _resume.Enabled = true; _stop.Enabled = false;
+    }
+
+    private void CompleteOperation()
+    {
+        _status.Text = "دانلود با موفقیت پایان یافت";
+        AppendLog("عملیات با موفقیت پایان یافت.", ActivitySeverity.Success);
+        MessageBox.Show(this, "نسخه آفلاین سایت ذخیره شد.", "پایان عملیات", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private void CancelledOperation()
+    {
+        _status.Text = "عملیات متوقف شد؛ وضعیت ذخیره شد";
+        AppendLog("برای ادامه، روی «ادامه پروژه» کلیک کنید.", ActivitySeverity.Warning);
+    }
+
+    private void FailedOperation(Exception ex)
+    {
+        _status.Text = "خطا";
+        AppendLog(ex.Message, ActivitySeverity.Error, _url.Text, ex.ToString());
+        CrashLogger.Write(ex, "Download operation");
+        MessageBox.Show(this, ex.Message, "خطا", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+
+    private void UpdateSpeedAndEta(int completed, int total)
+    {
+        if (_operationClock is null || _operationClock.Elapsed.TotalSeconds < 0.5 || completed <= 0)
+        {
+            _speed.Text = "سرعت: -";
+            _eta.Text = "زمان باقی‌مانده: -";
+            return;
+        }
+        var perSecond = completed / _operationClock.Elapsed.TotalSeconds;
+        _speed.Text = $"سرعت: {perSecond:0.00} صفحه/ثانیه";
+        var remaining = total - completed;
+        _eta.Text = remaining <= 0 ? "زمان باقی‌مانده: پایان" : $"زمان باقی‌مانده: {TimeSpan.FromSeconds(remaining / perSecond):hh\\:mm\\:ss}";
+    }
     private Task<IReadOnlyList<BrowserCookie>?> ShowCaptchaAsync(Uri uri, CancellationToken token) { using var form = new CaptchaForm(uri); return Task.FromResult<IReadOnlyList<BrowserCookie>?>(form.ShowDialog(this) == DialogResult.OK ? form.Cookies : null); }
-    private void AppendLog(string message)
+    private void AppendLog(string message, ActivitySeverity severity = ActivitySeverity.Info, string? url = null, string? details = null)
     {
         if (IsDisposed) return;
-        var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
+        var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{severity}] {message}";
         _log.AppendText(line + Environment.NewLine);
         if (!AppSettingsStore.Load().SaveDetailedLogs || string.IsNullOrWhiteSpace(_activeLogPath)) return;
-        try { File.AppendAllText(_activeLogPath, line + Environment.NewLine, Encoding.UTF8); }
-        catch { /* logging must not stop a download */ }
+        ActivityLogStore.Append(_activeLogPath, new ActivityLogEntry { Severity = severity, Url = url ?? string.Empty, Message = message, Details = details });
     }
 }

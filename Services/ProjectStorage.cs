@@ -16,9 +16,27 @@ public static class ProjectStorage
 
     public static async Task SaveAsync(string fileName, Uri root, IEnumerable<DownloadItem> links, CancellationToken token = default)
     {
-        var project = new SavedLinkProject { RootUrl = root.AbsoluteUri, Links = links.ToList() };
-        await using var stream = File.Create(fileName);
-        await JsonSerializer.SerializeAsync(stream, project, Options, token).ConfigureAwait(false);
+        await SaveAsync(fileName, root, links, null, token).ConfigureAwait(false);
+    }
+
+    public static async Task SaveAsync(
+        string fileName,
+        Uri root,
+        IEnumerable<DownloadItem> links,
+        ProxySnapshot? proxy,
+        CancellationToken token = default)
+    {
+        var project = new SavedLinkProject { RootUrl = root.AbsoluteUri, Links = links.ToList(), Proxy = proxy };
+        var directory = Path.GetDirectoryName(Path.GetFullPath(fileName))!;
+        Directory.CreateDirectory(directory);
+        var temporary = Path.Combine(directory, $".{Path.GetFileName(fileName)}.{Guid.NewGuid():N}.tmp");
+        await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.WriteThrough | FileOptions.Asynchronous))
+        {
+            await JsonSerializer.SerializeAsync(stream, project, Options, token).ConfigureAwait(false);
+            await stream.FlushAsync(token).ConfigureAwait(false);
+            stream.Flush(true);
+        }
+        ReplaceAtomically(temporary, fileName);
         Register(fileName);
     }
 
@@ -49,11 +67,31 @@ public static class ProjectStorage
             var files = GetKnownProjectFiles().Where(File.Exists).ToHashSet(StringComparer.OrdinalIgnoreCase);
             files.Add(Path.GetFullPath(fileName));
             Directory.CreateDirectory(Path.GetDirectoryName(IndexFile)!);
-            File.WriteAllText(IndexFile, JsonSerializer.Serialize(files.OrderBy(x => x).ToList(), Options));
+            var temp = Path.Combine(Path.GetDirectoryName(IndexFile)!, $".projects.{Guid.NewGuid():N}.tmp");
+            File.WriteAllText(temp, JsonSerializer.Serialize(files.OrderBy(x => x).ToList(), Options));
+            ReplaceAtomically(temp, IndexFile);
         }
         catch
         {
             // A project must remain usable even when the optional index cannot be written.
+        }
+    }
+
+    private static void ReplaceAtomically(string temporary, string destination)
+    {
+        try
+        {
+            if (File.Exists(destination))
+            {
+                try { File.Replace(temporary, destination, null, true); return; }
+                catch (PlatformNotSupportedException) { }
+                catch (IOException) { }
+            }
+            File.Move(temporary, destination, true);
+        }
+        finally
+        {
+            try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
         }
     }
 }

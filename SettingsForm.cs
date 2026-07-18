@@ -9,6 +9,11 @@ public sealed class SettingsForm : Form
     private readonly Button _primaryColor = new();
     private readonly Button _backgroundColor = new();
     private readonly CheckBox _saveLogs = new();
+    private readonly ComboBox _language = new();
+    private readonly TextBox _userAgent = new();
+    private readonly TextBox _headers = new();
+    private readonly TextBox _cookies = new();
+    private readonly CheckBox _renderJavaScript = new();
     private Color _primary;
     private Color _background;
     private Color _surface;
@@ -23,12 +28,13 @@ public sealed class SettingsForm : Form
 
         Text = "تنظیمات برنامه";
         StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(620, 470);
-        MinimumSize = new Size(560, 420);
+        Size = new Size(760, 700);
+        MinimumSize = new Size(680, 620);
         Font = UiTheme.NormalFont;
         RightToLeft = RightToLeft.Yes;
         BackColor = UiTheme.Background;
         BuildUi(current);
+        Localization.Apply(this, current.Language);
     }
 
     private void BuildUi(AppSettings current)
@@ -68,9 +74,20 @@ public sealed class SettingsForm : Form
         var hint = UiTheme.Label("پیشنهاد: قالب تیره برای کار طولانی و قالب آبی برای استفاده روزمره مناسب است.", 9, color: UiTheme.Muted);
         hint.AutoSize = false;
         hint.Location = new Point(22, 210);
-        hint.Size = new Size(500, 44);
+        hint.Size = new Size(640, 34);
 
-        card.Controls.AddRange([presetLabel, _preset, primaryLabel, _primaryColor, backgroundLabel, _backgroundColor, _saveLogs, hint]);
+        var languageLabel = UiTheme.Label("زبان برنامه", 10, color: UiTheme.Muted); languageLabel.Location = new Point(22, 255);
+        _language.DropDownStyle = ComboBoxStyle.DropDownList; _language.Items.AddRange(["فارسی", "English"]); _language.SelectedIndex = current.Language.Equals("en", StringComparison.OrdinalIgnoreCase) ? 1 : 0; _language.Location = new Point(22, 280); _language.Width = 180;
+        _renderJavaScript.Text = "فعال‌سازی حالت سازگار با صفحات JavaScript / SPA"; _renderJavaScript.AutoSize = true; _renderJavaScript.Checked = current.RenderJavaScript; _renderJavaScript.Location = new Point(230, 284);
+        var agentLabel = UiTheme.Label("User-Agent سفارشی (اختیاری)", 10, color: UiTheme.Muted); agentLabel.Location = new Point(22, 330);
+        _userAgent.Text = current.UserAgent; _userAgent.Location = new Point(22, 355); _userAgent.Width = 640; _userAgent.Height = 28; _userAgent.BorderStyle = BorderStyle.FixedSingle; _userAgent.RightToLeft = RightToLeft.No;
+        var headersLabel = UiTheme.Label("Headerهای سفارشی — هر خط: Name: Value", 10, color: UiTheme.Muted); headersLabel.Location = new Point(22, 398);
+        _headers.Multiline = true; _headers.ScrollBars = ScrollBars.Vertical; _headers.Location = new Point(22, 423); _headers.Size = new Size(640, 68); _headers.BorderStyle = BorderStyle.FixedSingle; _headers.RightToLeft = RightToLeft.No;
+        _headers.Text = string.Join(Environment.NewLine, current.CustomHeaders.Select(x => $"{x.Key}: {x.Value}"));
+        var cookiesLabel = UiTheme.Label("Cookie سفارشی (اختیاری)", 10, color: UiTheme.Muted); cookiesLabel.Location = new Point(22, 500);
+        _cookies.Text = current.CustomCookies; _cookies.Location = new Point(22, 525); _cookies.Width = 640; _cookies.Height = 28; _cookies.BorderStyle = BorderStyle.FixedSingle; _cookies.RightToLeft = RightToLeft.No;
+
+        card.Controls.AddRange([presetLabel, _preset, primaryLabel, _primaryColor, backgroundLabel, _backgroundColor, _saveLogs, hint, languageLabel, _language, _renderJavaScript, agentLabel, _userAgent, headersLabel, _headers, cookiesLabel, _cookies]);
 
         var buttons = new FlowLayoutPanel
         {
@@ -163,8 +180,26 @@ public sealed class SettingsForm : Form
             PrimaryColorArgb = _primary.ToArgb(),
             BackgroundColorArgb = _background.ToArgb(),
             SurfaceColorArgb = _surface.ToArgb(),
-            SaveDetailedLogs = _saveLogs.Checked
+            SaveDetailedLogs = _saveLogs.Checked,
+            Language = _language.SelectedIndex == 1 ? "en" : "fa",
+            RenderJavaScript = _renderJavaScript.Checked,
+            UserAgent = string.IsNullOrWhiteSpace(_userAgent.Text) ? new AppSettings().UserAgent : _userAgent.Text.Trim(),
+            CustomHeaders = ParseHeaders(_headers.Text),
+            CustomCookies = _cookies.Text.Trim()
         };
+        var previous = AppSettingsStore.Load();
+        result.ProxyKind = previous.ProxyKind;
+        result.ProxyEnabled = previous.ProxyEnabled;
+        result.ProxyAddress = previous.ProxyAddress;
+        result.ProxyPort = previous.ProxyPort;
+        result.EncryptedProxyUsername = previous.EncryptedProxyUsername;
+        result.EncryptedProxyPassword = previous.EncryptedProxyPassword;
+        result.RequestTimeoutSeconds = previous.RequestTimeoutSeconds;
+        result.RetryCount = previous.RetryCount;
+        result.DelayMilliseconds = previous.DelayMilliseconds;
+        result.ReadSitemaps = previous.ReadSitemaps;
+        result.FollowCanonicalLinks = previous.FollowCanonicalLinks;
+        result.ProxyProfiles = previous.ProxyProfiles;
         AppSettingsStore.Save(result);
         UiTheme.Apply(result);
         Result = result;
@@ -173,4 +208,18 @@ public sealed class SettingsForm : Form
     }
 
     private static bool IsDark(Color color) => (color.R * 299 + color.G * 587 + color.B * 114) < 145000;
+
+    private static Dictionary<string, string> ParseHeaders(string text)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in text.Split([Environment.NewLine, "\n"], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = line.IndexOf(':');
+            if (separator <= 0) continue;
+            var name = line[..separator].Trim();
+            var value = line[(separator + 1)..].Trim();
+            if (name.Length > 0 && value.Length > 0) result[name] = value;
+        }
+        return result;
+    }
 }

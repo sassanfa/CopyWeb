@@ -1,3 +1,5 @@
+using CopyWeb.Services;
+
 namespace CopyWeb
 {
     internal static class Program
@@ -11,6 +13,7 @@ namespace CopyWeb
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
+            CrashLogger.Install();
             Application.Run(new MainForm());
         }
     }

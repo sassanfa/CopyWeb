@@ -28,6 +28,26 @@ public static class AppSettingsStore
     public static void Save(AppSettings settings)
     {
         Directory.CreateDirectory(DirectoryPath);
-        File.WriteAllText(FilePath, JsonSerializer.Serialize(settings, Options));
+        var temporary = Path.Combine(DirectoryPath, $".settings.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 16 * 1024, FileOptions.WriteThrough))
+            using (var writer = new StreamWriter(stream))
+            {
+                writer.Write(JsonSerializer.Serialize(settings, Options));
+                writer.Flush();
+                stream.Flush(true);
+            }
+            if (File.Exists(FilePath))
+            {
+                try { File.Replace(temporary, FilePath, null, true); }
+                catch (IOException) { File.Move(temporary, FilePath, true); }
+            }
+            else File.Move(temporary, FilePath);
+        }
+        finally
+        {
+            try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
+        }
     }
 }

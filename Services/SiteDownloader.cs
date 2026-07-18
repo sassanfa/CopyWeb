@@ -20,7 +20,8 @@ public sealed partial class SiteDownloader(SiteSession session)
         IReadOnlyCollection<DownloadItem> sourceItems,
         string outputDirectory,
         IProgress<DownloadProgress>? progress,
-        CancellationToken token)
+        CancellationToken token,
+        int delayMilliseconds = 0)
     {
         _outputRoot = outputDirectory;
         Directory.CreateDirectory(outputDirectory);
@@ -39,15 +40,15 @@ public sealed partial class SiteDownloader(SiteSession session)
         {
             token.ThrowIfCancellationRequested();
             item.State = LinkState.Downloading;
-            progress?.Report(new DownloadProgress(completed, selected.Count, item.Url, 5, item.Url));
+            progress?.Report(new DownloadProgress(completed, selected.Count, item.Url, 5, item.Url, Failed: sourceItems.Count(x => x.State == LinkState.Failed)));
             progress?.Report(new DownloadProgress(completed, items.Count, $"در حال دانلود: {item.Url}"));
             try
             {
                 using var response = await _session.GetAsync(item.Uri, HttpCompletionOption.ResponseContentRead, token);
                 response.EnsureSuccessStatusCode();
-                progress?.Report(new DownloadProgress(completed, selected.Count, item.Url, 25, item.Url));
+                progress?.Report(new DownloadProgress(completed, selected.Count, item.Url, 25, item.Url, response.Content.Headers.ContentLength ?? 0, response.Content.Headers.ContentLength ?? 0, sourceItems.Count(x => x.State == LinkState.Failed)));
                 var html = await response.Content.ReadAsStringAsync(token);
-                progress?.Report(new DownloadProgress(completed, selected.Count, item.Url, 40, item.Url));
+                progress?.Report(new DownloadProgress(completed, selected.Count, item.Url, 40, item.Url, response.Content.Headers.ContentLength ?? 0, response.Content.Headers.ContentLength ?? 0, sourceItems.Count(x => x.State == LinkState.Failed)));
                 var document = await _parser.ParseDocumentAsync(html, token);
                 var pageFile = pageMap[item.Url];
 
@@ -73,9 +74,10 @@ public sealed partial class SiteDownloader(SiteSession session)
                 item.Error = ex.Message;
             }
             completed++;
-            progress?.Report(new DownloadProgress(completed, selected.Count, item.Url, 100, item.Url));
-            await SaveCheckpointAsync(root, sourceItems, outputDirectory);
+            progress?.Report(new DownloadProgress(completed, selected.Count, item.Url, 100, item.Url, Failed: sourceItems.Count(x => x.State == LinkState.Failed)));
+            await SaveCheckpointAsync(root, sourceItems, outputDirectory, token);
             progress?.Report(new DownloadProgress(completed, items.Count, $"{completed} از {items.Count} صفحه ذخیره شد"));
+            if (delayMilliseconds > 0) await Task.Delay(Math.Clamp(delayMilliseconds, 0, 60_000), token);
         }
 
         await SaveCheckpointAsync(root, sourceItems, outputDirectory, token);
