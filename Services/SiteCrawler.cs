@@ -257,8 +257,9 @@ public sealed class SiteCrawler(SiteSession session)
             if (string.IsNullOrWhiteSpace(raw) || raw.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
                 raw.StartsWith("blob:", StringComparison.OrdinalIgnoreCase) || raw.StartsWith('#')) return;
             if (!Uri.TryCreate(page, WebUtility.HtmlDecode(raw.Trim()), out var uri) || uri.Scheme is not ("http" or "https")) return;
-            var key = uri.AbsoluteUri;
-            if (!result.ContainsKey(key)) result[key] = new ResourceItem { Url = key, Kind = kind };
+            var normalized = UrlTools.NormalizeResourceUri(uri);
+            var key = UrlTools.ResourceCacheKey(normalized);
+            if (!result.ContainsKey(key)) result[key] = new ResourceItem { Url = normalized.AbsoluteUri, Kind = kind };
         }
 
         var selectors = new (string Selector, string Attribute, ResourceKind Kind)[]

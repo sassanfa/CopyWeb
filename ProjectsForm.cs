@@ -49,6 +49,7 @@ public sealed class ProjectsForm : Form
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "date", HeaderText = "آخرین ذخیره", DataPropertyName = nameof(ProjectEntry.Date), Width = 150 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "links", HeaderText = "تعداد لینک", DataPropertyName = nameof(ProjectEntry.LinkCount), Width = 100 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "storage", HeaderText = "پوشه ذخیره‌سازی", DataPropertyName = nameof(ProjectEntry.StoragePath), Width = 300 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "size", HeaderText = "حجم", DataPropertyName = nameof(ProjectEntry.SizeText), Width = 100 });
         _grid.Columns.Add(new DataGridViewButtonColumn { Name = "delete", HeaderText = "", Text = "X", UseColumnTextForButtonValue = true, Width = 48, FlatStyle = FlatStyle.Flat });
         _grid.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && _grid.Columns[e.ColumnIndex].Name == "delete") DeleteProject(_grid.Rows[e.RowIndex].DataBoundItem as ProjectEntry); };
         _grid.CellDoubleClick += (_, _) => ViewLinks();
@@ -63,6 +64,7 @@ public sealed class ProjectsForm : Form
             Height = 50,
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false,
+            AutoScroll = true,
             BackColor = Color.Transparent
         };
         var refresh = UiTheme.Button("به‌روزرسانی", Color.White);
@@ -81,10 +83,25 @@ public sealed class ProjectsForm : Form
         resume.Tag = "accent-button";
         resume.Width = 130;
         resume.Click += (_, _) => ResumeProject();
+        var backup = UiTheme.Button("پشتیبان‌گیری", Color.FromArgb(118, 137, 157));
+        backup.Width = 125;
+        backup.Click += async (_, _) => await BackupProjectAsync();
+        var restore = UiTheme.Button("بازیابی پروژه", Color.FromArgb(118, 137, 157));
+        restore.Width = 125;
+        restore.Click += async (_, _) => await RestoreProjectAsync();
+        var copy = UiTheme.Button("کپی پروژه", Color.FromArgb(118, 137, 157));
+        copy.Width = 110;
+        copy.Click += async (_, _) => await CopyProjectAsync();
+        var rename = UiTheme.Button("تغییر نام", Color.FromArgb(118, 137, 157));
+        rename.Width = 105;
+        rename.Click += async (_, _) => await RenameProjectAsync();
+        var schedule = UiTheme.Button("زمان‌بندی", Color.FromArgb(118, 137, 157));
+        schedule.Width = 105;
+        schedule.Click += (_, _) => ScheduleProject();
         var close = UiTheme.Button("بستن", UiTheme.Primary);
         close.Width = 95;
         close.Click += (_, _) => Close();
-        buttons.Controls.AddRange([close, resume, folder, view, refresh]);
+        buttons.Controls.AddRange([close, restore, backup, copy, rename, schedule, resume, folder, view, refresh]);
 
         root.Controls.Add(card);
         root.Controls.Add(buttons);
@@ -145,7 +162,8 @@ public sealed class ProjectsForm : Form
                     File.GetLastWriteTime(file).ToString("yyyy-MM-dd HH:mm"),
                     project.Links.Count,
                     Path.GetDirectoryName(file) ?? string.Empty,
-                    file));
+                    file,
+                    FormatBytes(DirectorySize(Path.GetDirectoryName(file) ?? string.Empty))));
             }
             catch
             {
@@ -192,6 +210,100 @@ public sealed class ProjectsForm : Form
         Close();
     }
 
+    private async Task BackupProjectAsync()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        using var dialog = new SaveFileDialog { Filter = "CopyWeb backup|*.copyweb.zip", FileName = $"{UrlTools.CleanName(entry.Site, "copyweb-project")}.copyweb.zip" };
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            await ProjectArchiveService.CreateBackupAsync(entry.FileName, dialog.FileName);
+            MessageBox.Show(this, "پشتیبان پروژه با موفقیت ساخته شد.", "پشتیبان‌گیری", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "خطای پشتیبان‌گیری", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+    }
+
+    private async Task RestoreProjectAsync()
+    {
+        using var open = new OpenFileDialog { Filter = "CopyWeb backup|*.copyweb.zip;*.zip" };
+        if (open.ShowDialog(this) != DialogResult.OK) return;
+        using var folder = new FolderBrowserDialog { Description = "محل بازیابی پروژه را انتخاب کنید" };
+        if (folder.ShowDialog(this) != DialogResult.OK) return;
+        var destination = Path.Combine(folder.SelectedPath, Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(open.FileName)));
+        try
+        {
+            await Task.Run(() => ProjectArchiveService.RestoreBackup(open.FileName, destination));
+            await LoadProjectsAsync();
+            MessageBox.Show(this, $"پروژه در مسیر زیر بازیابی شد:\n{destination}", "بازیابی پروژه", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "خطای بازیابی", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+    }
+
+    private async Task CopyProjectAsync()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        using var dialog = new FolderBrowserDialog { Description = "محل کپی پروژه را انتخاب کنید" };
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        var source = Path.GetDirectoryName(entry.FileName);
+        if (string.IsNullOrWhiteSpace(source) || !Directory.Exists(source)) return;
+        var target = Path.Combine(dialog.SelectedPath, Path.GetFileName(source) + "-copy");
+        try
+        {
+            await Task.Run(() => CopyDirectory(source, target));
+            await LoadProjectsAsync();
+            MessageBox.Show(this, $"پروژه در مسیر زیر کپی شد:\n{target}", "کپی پروژه", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "خطای کپی پروژه", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+    }
+
+    private async Task RenameProjectAsync()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        var oldFolder = Path.GetDirectoryName(entry.FileName);
+        if (string.IsNullOrWhiteSpace(oldFolder) || !Directory.Exists(oldFolder)) return;
+        using var dialog = new InputDialog("نام جدید پروژه", Path.GetFileName(oldFolder));
+        if (dialog.ShowDialog(this) != DialogResult.OK || string.IsNullOrWhiteSpace(dialog.Value)) return;
+        var parent = Directory.GetParent(oldFolder)?.FullName;
+        if (string.IsNullOrWhiteSpace(parent)) return;
+        var newFolder = Path.Combine(parent, UrlTools.CleanName(dialog.Value.Trim(), "copyweb-project"));
+        if (Directory.Exists(newFolder)) { MessageBox.Show(this, "این نام قبلاً وجود دارد.", "تغییر نام", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        try
+        {
+            var project = await ProjectStorage.LoadAsync(entry.FileName);
+            Directory.Move(oldFolder, newFolder);
+            await ProjectStorage.SaveAsync(Path.Combine(newFolder, "links.json"), new Uri(project.RootUrl), project.Links, project.Proxy);
+            ProjectStorage.Forget(entry.FileName);
+            await LoadProjectsAsync();
+            MessageBox.Show(this, "نام پروژه تغییر کرد.", "تغییر نام", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "خطای تغییر نام", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+    }
+
+    private void ScheduleProject()
+    {
+        var entry = SelectedEntry;
+        if (entry is null || !Uri.TryCreate(entry.Site, UriKind.Absolute, out var root)) return;
+        using var form = new ScheduleForm(root, entry.StoragePath);
+        form.ShowDialog(this);
+    }
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var file in Directory.EnumerateFiles(source)) File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), true);
+        foreach (var directory in Directory.EnumerateDirectories(source)) CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
+    }
+
+    private static long DirectorySize(string path)
+    {
+        try { return Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories).Sum(file => new FileInfo(file).Length); } catch { return 0; }
+    }
+
+    private static string FormatBytes(long bytes) => bytes switch { < 1024 => $"{bytes} B", < 1024 * 1024 => $"{bytes / 1024d:0.0} KB", < 1024 * 1024 * 1024 => $"{bytes / 1024d / 1024d:0.0} MB", _ => $"{bytes / 1024d / 1024d / 1024d:0.0} GB" };
+
     private void DeleteProject(ProjectEntry? entry)
     {
         if (entry is null) return;
@@ -221,5 +333,19 @@ public sealed class ProjectsForm : Form
         }
     }
 
-    private sealed record ProjectEntry(string Site, string Date, int LinkCount, string StoragePath, string FileName);
+    private sealed record ProjectEntry(string Site, string Date, int LinkCount, string StoragePath, string FileName, string SizeText);
+
+    private sealed class InputDialog : Form
+    {
+        private readonly TextBox _input = new();
+        public string Value => _input.Text;
+        public InputDialog(string title, string value)
+        {
+            Text = title; StartPosition = FormStartPosition.CenterParent; Size = new Size(420, 150); Font = UiTheme.NormalFont; RightToLeft = RightToLeft.Yes; BackColor = UiTheme.Background;
+            _input.Text = value; _input.Location = new Point(18, 18); _input.Width = 360; _input.RightToLeft = RightToLeft.No;
+            var ok = UiTheme.Button("تأیید", UiTheme.Primary); ok.Location = new Point(220, 62); ok.Width = 85; ok.Click += (_, _) => { DialogResult = DialogResult.OK; Close(); };
+            var cancel = UiTheme.Button("انصراف", Color.White); cancel.Tag = "secondary-button"; cancel.Location = new Point(310, 62); cancel.Width = 85; cancel.Click += (_, _) => Close();
+            Controls.AddRange([_input, ok, cancel]);
+        }
+    }
 }

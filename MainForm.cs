@@ -27,6 +27,8 @@ public partial class MainForm : Form
     private readonly NumericUpDown _requestDelay = new();
     private readonly NumericUpDown _concurrency = new();
     private readonly NumericUpDown _minFreeDisk = new();
+    private readonly NumericUpDown _speedLimit = new();
+    private readonly NumericUpDown _domainConnections = new();
     private readonly ProgressBar _progress = new();
     private readonly ProgressBar _fileProgress = new();
     private readonly Label _progressCaption = UiTheme.Label("پیشرفت کل پروژه", 8, color: UiTheme.Muted);
@@ -47,6 +49,8 @@ public partial class MainForm : Form
     private Stopwatch? _operationClock;
     private bool _approveCaptchaForOperation;
     private IReadOnlyList<BrowserCookie> _captchaCookies = [];
+    private DownloadMonitorForm? _downloadMonitor;
+    private LocalApiServer? _apiServer;
 
     static MainForm()
     {
@@ -67,6 +71,11 @@ public partial class MainForm : Form
         ShowIcon = true;
         BuildUi();
         Localization.Apply(this, AppSettingsStore.Load().Language);
+        AllowDrop = true;
+        DragEnter += (_, e) => e.Effect = (e.Data?.GetDataPresent(DataFormats.Text) == true || e.Data?.GetDataPresent(DataFormats.FileDrop) == true) ? DragDropEffects.Copy : DragDropEffects.None;
+        DragDrop += (_, e) => HandleDrop(e.Data);
+        FormClosed += (_, _) => _apiServer?.Dispose();
+        StartLocalApi();
     }
 
     private void BuildUi()
@@ -167,11 +176,16 @@ public partial class MainForm : Form
         var delayLabel = UiTheme.Label("تأخیر درخواست (ms)", 8, color: UiTheme.Muted); delayLabel.Location = new Point(220, 108);
         _requestDelay.Minimum = 0; _requestDelay.Maximum = 60000; _requestDelay.Value = 150; _requestDelay.Width = 120; _requestDelay.Location = new Point(220, 132);
         var proxyHint = UiTheme.Label("HTTP / HTTPS / SOCKS5 — رمز عبور با Windows DPAPI ذخیره می‌شود.", 8, color: UiTheme.Muted); proxyHint.Location = new Point(22, 174);
+        var profiles = UiTheme.Button("پروفایل‌ها", Color.FromArgb(232, 237, 245)); profiles.Tag = "secondary-button"; profiles.ForeColor = UiTheme.Text; profiles.Width = 112; profiles.Height = 30; profiles.Location = new Point(420, 174); profiles.Click += (_, _) => ShowProxyProfiles();
         var concurrencyLabel = UiTheme.Label("دانلود هم‌زمان", 8, color: UiTheme.Muted); concurrencyLabel.Location = new Point(22, 205);
         _concurrency.Minimum = 1; _concurrency.Maximum = 16; _concurrency.Width = 70; _concurrency.Location = new Point(22, 220);
         var diskLabel = UiTheme.Label("حداقل فضای آزاد (MB)", 8, color: UiTheme.Muted); diskLabel.Location = new Point(112, 205);
         _minFreeDisk.Minimum = 0; _minFreeDisk.Maximum = 1024 * 1024; _minFreeDisk.Width = 120; _minFreeDisk.Location = new Point(112, 220);
-        proxy.Controls.AddRange([proxyTitle, _proxyEnabled, _proxyType, _proxyAddress, _proxyPort, _proxyUser, _proxyPassword, timeoutLabel, _timeoutSeconds, retryLabel, _retryCount, delayLabel, _requestDelay, proxyHint, concurrencyLabel, _concurrency, diskLabel, _minFreeDisk]);
+        var speedLabel = UiTheme.Label("سقف سرعت (KB/s، صفر=نامحدود)", 8, color: UiTheme.Muted); speedLabel.Location = new Point(250, 205);
+        _speedLimit.Minimum = 0; _speedLimit.Maximum = 1024 * 1024; _speedLimit.Width = 145; _speedLimit.Location = new Point(250, 220);
+        var domainLabel = UiTheme.Label("اتصال هر دامنه", 8, color: UiTheme.Muted); domainLabel.Location = new Point(410, 205);
+        _domainConnections.Minimum = 1; _domainConnections.Maximum = 32; _domainConnections.Width = 80; _domainConnections.Location = new Point(410, 220);
+        proxy.Controls.AddRange([proxyTitle, _proxyEnabled, _proxyType, _proxyAddress, _proxyPort, _proxyUser, _proxyPassword, timeoutLabel, _timeoutSeconds, retryLabel, _retryCount, delayLabel, _requestDelay, proxyHint, profiles, concurrencyLabel, _concurrency, diskLabel, _minFreeDisk, speedLabel, _speedLimit, domainLabel, _domainConnections]);
 
         var output = UiTheme.Card(); output.Dock = DockStyle.Top; output.Height = 120;
         var outputTitle = UiTheme.Label("محل ذخیره", 12, FontStyle.Bold); outputTitle.Location = new Point(22, 16);
@@ -206,7 +220,7 @@ public partial class MainForm : Form
         var reports = NavButton("📊   گزارش‌ها", false); reports.Click += (_, _) => ShowReports();
         var about = NavButton("ⓘ   درباره برنامه", false); about.Click += (_, _) => ShowAbout();
         nav.Controls.AddRange([home, projects, settings, reports, about]);
-        var version = UiTheme.Label("نسخه 1.1.2", 9, color: Color.FromArgb(215, 232, 255)); version.Dock = DockStyle.Bottom; version.TextAlign = ContentAlignment.MiddleCenter; version.Height = 30;
+        var version = UiTheme.Label("نسخه 1.2.0", 9, color: Color.FromArgb(215, 232, 255)); version.Dock = DockStyle.Bottom; version.TextAlign = ContentAlignment.MiddleCenter; version.Height = 30;
         sidebar.Controls.Add(version); sidebar.Controls.Add(nav); sidebar.Controls.Add(brand);
         return sidebar;
     }
@@ -267,6 +281,8 @@ public partial class MainForm : Form
         _requestDelay.Value = Math.Clamp(settings.DelayMilliseconds, (int)_requestDelay.Minimum, (int)_requestDelay.Maximum);
         _concurrency.Value = Math.Clamp(settings.MaxConcurrentDownloads, (int)_concurrency.Minimum, (int)_concurrency.Maximum);
         _minFreeDisk.Value = Math.Clamp(settings.MinimumFreeDiskSpaceMb, (long)_minFreeDisk.Minimum, (long)_minFreeDisk.Maximum);
+        _speedLimit.Value = Math.Clamp(settings.MaxDownloadSpeedKbps, (int)_speedLimit.Minimum, (int)_speedLimit.Maximum);
+        _domainConnections.Value = Math.Clamp(settings.MaxConnectionsPerDomain, (int)_domainConnections.Minimum, (int)_domainConnections.Maximum);
         _sitemaps.Checked = settings.ReadSitemaps;
         _canonical.Checked = settings.FollowCanonicalLinks;
     }
@@ -316,7 +332,11 @@ public partial class MainForm : Form
     {
         using var form = new SettingsForm(AppSettingsStore.Load());
         if (form.ShowDialog(this) == DialogResult.OK)
+        {
             ApplyThemeToControls();
+            _apiServer?.Dispose(); _apiServer = null;
+            StartLocalApi();
+        }
     }
 
     private void ShowReports()
@@ -342,6 +362,21 @@ public partial class MainForm : Form
         BackColor = UiTheme.Background;
         ApplyThemeToControl(this, false);
         Localization.Apply(this, AppSettingsStore.Load().Language);
+    }
+
+    private void StartLocalApi()
+    {
+        var settings = AppSettingsStore.Load();
+        if (!settings.EnableLocalApi) return;
+        try
+        {
+            _apiServer = new LocalApiServer(settings.LocalApiPort,
+                () => new { running = _cts is not null, url = _url.Text, status = _status.Text, currentFile = _currentFile.Text, version = UpdateChecker.CurrentVersion },
+                () => _cts?.Cancel());
+            _apiServer.Start();
+            AppendLog($"API محلی روی http://127.0.0.1:{settings.LocalApiPort} فعال شد.");
+        }
+        catch (Exception ex) { AppendLog($"فعال‌سازی API محلی ناموفق بود: {ex.Message}", ActivitySeverity.Warning); }
     }
 
     private static void ApplyThemeToControl(Control control, bool inSidebar)
@@ -433,6 +468,31 @@ public partial class MainForm : Form
         _url.SelectionLength = 0;
     }
 
+    private void HandleDrop(IDataObject? data)
+    {
+        if (data is null) return;
+        if (data.GetDataPresent(DataFormats.Text)) { _url.Text = (data.GetData(DataFormats.Text)?.ToString() ?? string.Empty).Trim(); return; }
+        if (!data.GetDataPresent(DataFormats.FileDrop)) return;
+        var files = data.GetData(DataFormats.FileDrop) as string[];
+        var file = files?.FirstOrDefault(File.Exists);
+        if (file is null) return;
+        var firstLine = File.ReadLines(file).FirstOrDefault()?.Trim();
+        if (!string.IsNullOrWhiteSpace(firstLine)) _url.Text = firstLine;
+    }
+
+    private void ShowProxyProfiles()
+    {
+        using var form = new ProxyProfilesForm(AppSettingsStore.Load().ProxyProfiles);
+        if (form.ShowDialog(this) != DialogResult.OK || form.SelectedProfile is not { } profile) return;
+        _proxyEnabled.Checked = true;
+        _proxyType.SelectedIndex = profile.Kind switch { ProxyKind.Https => 1, ProxyKind.Socks5 => 2, _ => 0 };
+        _proxyAddress.Text = profile.Address;
+        _proxyPort.Text = profile.Port.ToString();
+        _proxyUser.Text = SecureStorage.Unprotect(profile.EncryptedUsername) ?? string.Empty;
+        _proxyPassword.Text = SecureStorage.Unprotect(profile.EncryptedPassword) ?? string.Empty;
+        UpdateProxyControls();
+    }
+
     private async void StartClick(object? sender, EventArgs e)
     {
         if (!Uri.TryCreate(_url.Text.Trim(), UriKind.Absolute, out var root) || root.Scheme is not ("http" or "https"))
@@ -479,9 +539,18 @@ public partial class MainForm : Form
         finally { FinishOperation(); }
     }
 
-    private async Task DownloadItemsAsync(SiteSession session, Uri root, IReadOnlyCollection<DownloadItem> links, string output)
+    private async Task DownloadItemsAsync(SiteSession session, Uri root, IReadOnlyCollection<DownloadItem> links, string output, bool reuseMonitor = false)
     {
-        var downloader = new SiteDownloader(session); var downloadProgress = new Progress<DownloadProgress>(p =>
+        var downloader = new SiteDownloader(session);
+        if (!reuseMonitor)
+        {
+            _downloadMonitor?.Close();
+            _downloadMonitor?.Dispose();
+            _downloadMonitor = new DownloadMonitorForm(links, output, () => _cts?.Cancel(), downloader.CancelItem, failed => RetryFailedItemsAsync(root, output, failed));
+            _downloadMonitor.Show(this);
+        }
+        else _downloadMonitor?.SetCancelItem(downloader.CancelItem);
+        var downloadProgress = new Progress<DownloadProgress>(p =>
         {
             _status.Text = p.Message;
             _currentFile.Text = $"فایل فعلی ({p.CurrentPercent}%): {p.CurrentUrl ?? "-"}";
@@ -494,8 +563,36 @@ public partial class MainForm : Form
             UpdateSpeedAndEta(p.Completed, p.Total, p.TotalBytesDownloaded);
             var severity = p.Message.Contains("ناموفق", StringComparison.OrdinalIgnoreCase) ? ActivitySeverity.Warning : ActivitySeverity.Info;
             AppendLog($"{p.CurrentPercent}% | {p.Message}", severity, p.CurrentUrl);
+            _downloadMonitor?.UpdateProgress(p);
         });
-        await downloader.DownloadAsync(root, links, output, downloadProgress, _cts!.Token, (int)_requestDelay.Value, (int)_concurrency.Value, (long)_minFreeDisk.Value);
+        try
+        {
+            await downloader.DownloadAsync(root, links, output, downloadProgress, _cts!.Token, (int)_requestDelay.Value, (int)_concurrency.Value, (long)_minFreeDisk.Value, (int)_speedLimit.Value, (int)_domainConnections.Value);
+        }
+        finally
+        {
+            _downloadMonitor?.MarkCompleted();
+        }
+    }
+
+    private async Task RetryFailedItemsAsync(Uri root, string output, IReadOnlyList<DownloadItem> failed)
+    {
+        if (_cts is not null)
+        {
+            MessageBox.Show(this, "ابتدا عملیات فعلی تمام شود و سپس تلاش مجدد را بزنید.", "تلاش مجدد", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        _cts = new CancellationTokenSource();
+        _operationClock = Stopwatch.StartNew();
+        _start.Enabled = false; _resume.Enabled = false; _stop.Enabled = true;
+        try
+        {
+            using var session = CreateSession();
+            await DownloadItemsAsync(session, root, failed, output, reuseMonitor: true);
+        }
+        catch (OperationCanceledException) { CancelledOperation(); }
+        catch (Exception ex) { FailedOperation(ex); }
+        finally { FinishOperation(); }
     }
 
     private CrawlOptions BuildCrawlOptions() => new()
@@ -527,6 +624,8 @@ public partial class MainForm : Form
         settings.DelayMilliseconds = (int)_requestDelay.Value;
         settings.MaxConcurrentDownloads = (int)_concurrency.Value;
         settings.MinimumFreeDiskSpaceMb = (long)_minFreeDisk.Value;
+        settings.MaxDownloadSpeedKbps = (int)_speedLimit.Value;
+        settings.MaxConnectionsPerDomain = (int)_domainConnections.Value;
         settings.ReadSitemaps = _sitemaps.Checked;
         settings.FollowCanonicalLinks = _canonical.Checked;
         AppSettingsStore.Save(settings);
@@ -541,6 +640,8 @@ public partial class MainForm : Form
             TimeoutSeconds = (int)_timeoutSeconds.Value,
             RetryCount = (int)_retryCount.Value,
             RetryDelayMilliseconds = 750,
+            MaxDownloadSpeedKbps = (int)_speedLimit.Value,
+            MaxConnectionsPerDomain = (int)_domainConnections.Value,
             UserAgent = settings.UserAgent,
             Headers = settings.CustomHeaders,
             CookieHeader = settings.CustomCookies
@@ -571,8 +672,11 @@ public partial class MainForm : Form
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             using var response = await session.GetAsync(new Uri("https://api.ipify.org?format=json"), timeout.Token);
             response.EnsureSuccessStatusCode();
+            using var directClient = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(15) };
+            var directIp = await directClient.GetStringAsync("https://api.ipify.org?format=json", timeout.Token);
+            var proxyIp = await response.Content.ReadAsStringAsync(timeout.Token);
             SetProxyTestColor(Color.FromArgb(137, 177, 153));
-            MessageBox.Show(this, $"پروکسی با موفقیت پاسخ داد.\n{await response.Content.ReadAsStringAsync(timeout.Token)}", "تست موفق", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, $"پروکسی با موفقیت پاسخ داد.\nIP واقعی: {directIp}\nIP پروکسی: {proxyIp}", "تست موفق", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {

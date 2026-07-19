@@ -21,6 +21,13 @@ public sealed class AppSettings
     public int MaxConcurrentDownloads { get; set; } = 4;
     /// <summary>Minimum free space required before starting a download (MB).</summary>
     public long MinimumFreeDiskSpaceMb { get; set; } = 512;
+    /// <summary>Maximum aggregate download speed in KB/s; zero means unlimited.</summary>
+    public int MaxDownloadSpeedKbps { get; set; }
+    /// <summary>Maximum simultaneous page requests per host.</summary>
+    public int MaxConnectionsPerDomain { get; set; } = 2;
+    public bool CompactMode { get; set; }
+    public bool EnableLocalApi { get; set; }
+    public int LocalApiPort { get; set; } = 17842;
     public bool ReadSitemaps { get; set; } = true;
     public bool FollowCanonicalLinks { get; set; } = true;
     public bool RenderJavaScript { get; set; }

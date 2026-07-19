@@ -4,7 +4,9 @@ using CopyWeb.Models;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using LinkState = CopyWeb.Models.LinkState;
 
@@ -15,8 +17,12 @@ public sealed partial class SiteDownloader(SiteSession session)
 {
     private readonly SiteSession _session = session;
     private readonly ConcurrentDictionary<string, string> _assets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, string> _contentAssets = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _assetGates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _itemTokens = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _domainGates = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _checkpointGate = new(1, 1);
+    private readonly SemaphoreSlim _assetManifestGate = new(1, 1);
     private string _outputRoot = string.Empty;
     private IProgress<DownloadProgress>? _progress;
     private int _completed;
@@ -27,6 +33,16 @@ public sealed partial class SiteDownloader(SiteSession session)
     private long _totalBytesDownloaded;
     private long _totalBytesExpected;
     private long _lastProgressTimestamp;
+    private int _maxDownloadSpeedKbps;
+    private int _maxConnectionsPerDomain = 2;
+    private string _assetManifestFile = string.Empty;
+    private bool _assetManifestLoaded;
+
+    private sealed class AssetManifest
+    {
+        public Dictionary<string, string> Urls { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> ContentHashes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    }
 
     public async Task DownloadAsync(
         Uri root,
@@ -36,11 +52,15 @@ public sealed partial class SiteDownloader(SiteSession session)
         CancellationToken token,
         int delayMilliseconds = 0,
         int maxConcurrentDownloads = 4,
-        long minimumFreeDiskSpaceMb = 512)
+        long minimumFreeDiskSpaceMb = 512,
+        int maxDownloadSpeedKbps = 0,
+        int maxConnectionsPerDomain = 2)
     {
         _outputRoot = outputDirectory;
         _progress = progress;
         Directory.CreateDirectory(outputDirectory);
+        _assetManifestFile = Path.Combine(outputDirectory, "assets-manifest.json");
+        LoadAssetManifest();
         foreach (var folder in new[] { "pages", "Img", "CSS", "JS", "Fonts", "Files" })
             Directory.CreateDirectory(Path.Combine(outputDirectory, folder));
 
@@ -59,6 +79,8 @@ public sealed partial class SiteDownloader(SiteSession session)
         _totalBytesDownloaded = 0;
         _totalBytesExpected = 0;
         _lastProgressTimestamp = 0;
+        _maxDownloadSpeedKbps = Math.Max(0, maxDownloadSpeedKbps);
+        _maxConnectionsPerDomain = Math.Clamp(maxConnectionsPerDomain, 1, 32);
 
         var minimumFreeBytes = Math.Max(0, minimumFreeDiskSpaceMb) * 1024L * 1024L;
         var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(outputDirectory))!);
@@ -73,7 +95,7 @@ public sealed partial class SiteDownloader(SiteSession session)
         }
 
         using var workers = new SemaphoreSlim(Math.Clamp(maxConcurrentDownloads, 1, 16));
-        var tasks = items.Select(item => DownloadWorkerAsync(root, sourceItems, outputDirectory, item, pageMap, workers, delayMilliseconds, token)).ToList();
+        var tasks = items.Select(item => DownloadWorkerPerItemAsync(root, sourceItems, outputDirectory, item, pageMap, workers, delayMilliseconds, token)).ToList();
         try
         {
             await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -86,9 +108,80 @@ public sealed partial class SiteDownloader(SiteSession session)
         }
 
         await SaveCheckpointAsync(root, sourceItems, outputDirectory, token).ConfigureAwait(false);
+        await SaveAssetManifestAsync().ConfigureAwait(false);
         var log = sourceItems.Select(x => $"{x.State}\t{x.Url}\t{x.Error}");
         await File.WriteAllLinesAsync(Path.Combine(outputDirectory, "download-log.txt"), log, token).ConfigureAwait(false);
         Report(100, null, $"عملیات دانلود تمام شد: {_completed} از {_total} صفحه");
+    }
+
+    public void CancelItem(string url)
+    {
+        if (_itemTokens.TryGetValue(url, out var cancellation)) cancellation.Cancel();
+    }
+
+    private async Task DownloadWorkerPerItemAsync(Uri root, IReadOnlyCollection<DownloadItem> sourceItems, string outputDirectory,
+        DownloadItem item, Dictionary<string, string> pageMap, SemaphoreSlim workers, int delayMilliseconds, CancellationToken token)
+    {
+        using var itemCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+        _itemTokens[item.Url] = itemCancellation;
+        var acquired = false;
+        SemaphoreSlim? domainGate = null;
+        var domainAcquired = false;
+        try
+        {
+            await workers.WaitAsync(itemCancellation.Token).ConfigureAwait(false);
+            acquired = true;
+            domainGate = _domainGates.GetOrAdd(item.Uri.Host, _ => new SemaphoreSlim(_maxConnectionsPerDomain, _maxConnectionsPerDomain));
+            await domainGate.WaitAsync(itemCancellation.Token).ConfigureAwait(false);
+            domainAcquired = true;
+            Interlocked.Decrement(ref _queued);
+            Interlocked.Increment(ref _activeDownloads);
+            item.State = LinkState.Downloading;
+            Report(0, item.Url, $"در حال دانلود {item.Url}");
+            var pageFile = pageMap[item.Url];
+            var parser = new HtmlParser();
+            using var response = await _session.GetAsync(item.Uri, HttpCompletionOption.ResponseHeadersRead, itemCancellation.Token).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            var bytes = await ReadContentWithProgressAsync(response.Content, item.Uri, $"در حال دانلود صفحه {item.Url}", itemCancellation.Token).ConfigureAwait(false);
+            var html = DecodeText(bytes, response.Content.Headers.ContentType?.CharSet);
+            var document = await parser.ParseDocumentAsync(html, itemCancellation.Token).ConfigureAwait(false);
+            RewritePageLinks(document, item.Uri, pageFile, pageMap);
+            await RewriteResourcesAsync(document, item.Uri, pageFile, item, itemCancellation.Token).ConfigureAwait(false);
+            var output = document.DocumentElement?.OuterHtml ?? html;
+            await File.WriteAllTextAsync(pageFile, "<!DOCTYPE html>\n" + output, new UTF8Encoding(false), itemCancellation.Token).ConfigureAwait(false);
+            item.State = LinkState.Downloaded;
+            item.Error = null;
+            if (delayMilliseconds > 0) await Task.Delay(Math.Clamp(delayMilliseconds, 0, 60_000), itemCancellation.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            item.State = LinkState.Skipped;
+            item.Error = "توسط کاربر متوقف شد";
+        }
+        catch (OperationCanceledException)
+        {
+            item.State = LinkState.Pending;
+            throw;
+        }
+        catch (Exception ex)
+        {
+            item.State = LinkState.Failed;
+            item.Error = ex.Message;
+            Interlocked.Increment(ref _failed);
+        }
+        finally
+        {
+            _itemTokens.TryRemove(item.Url, out _);
+            if (acquired)
+            {
+                Interlocked.Increment(ref _completed);
+                Interlocked.Decrement(ref _activeDownloads);
+                Report(100, item.Url, item.State == LinkState.Downloaded ? $"صفحه ذخیره شد: {item.Url}" : $"دانلود ناموفق: {item.Url}");
+                try { await SaveCheckpointAsync(root, sourceItems, outputDirectory, token).ConfigureAwait(false); } catch (OperationCanceledException) { }
+                if (domainAcquired) domainGate?.Release();
+                workers.Release();
+            }
+        }
     }
 
     private async Task DownloadWorkerAsync(Uri root, IReadOnlyCollection<DownloadItem> sourceItems, string outputDirectory,
@@ -162,6 +255,7 @@ public sealed partial class SiteDownloader(SiteSession session)
         await using var buffer = new MemoryStream(totalBytes is > 0 and <= int.MaxValue ? (int)totalBytes : 0);
         var chunk = new byte[32 * 1024];
         long bytes = 0;
+        var transferClock = Stopwatch.StartNew();
         while (true)
         {
             var read = await stream.ReadAsync(chunk.AsMemory(), token).ConfigureAwait(false);
@@ -171,6 +265,12 @@ public sealed partial class SiteDownloader(SiteSession session)
             Interlocked.Add(ref _totalBytesDownloaded, read);
             var percent = totalBytes > 0 ? (int)Math.Clamp(bytes * 100L / totalBytes, 0, 100) : 0;
             Report(percent, uri.AbsoluteUri, message, bytes, totalBytes);
+            if (_maxDownloadSpeedKbps > 0)
+            {
+                var expectedMilliseconds = bytes * 1000d / (_maxDownloadSpeedKbps * 1024d);
+                var delay = expectedMilliseconds - transferClock.Elapsed.TotalMilliseconds;
+                if (delay > 2) await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(delay, 500)), token).ConfigureAwait(false);
+            }
         }
         return buffer.ToArray();
     }
@@ -265,11 +365,27 @@ public sealed partial class SiteDownloader(SiteSession session)
 
     private async Task<string?> DownloadAssetAsync(Uri uri, CancellationToken token)
     {
-        var gate = _assetGates.GetOrAdd(uri.AbsoluteUri, _ => new SemaphoreSlim(1, 1));
+        var key = UrlTools.ResourceCacheKey(uri);
+        var gate = _assetGates.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            if (_assets.TryGetValue(uri.AbsoluteUri, out var existing) && File.Exists(existing)) return existing;
+            // Repeated references (including srcset/CSS references) use one cache key and one HTTP request.
+            if (_assets.TryGetValue(key, out var existing) && File.Exists(existing)) return existing;
+
+            // Reuse a deterministic file left by an older/resumed run even if its manifest was not written.
+            var (knownFolder, knownExtension) = Classify(uri, string.Empty);
+            if (knownExtension is not ".bin" && !string.IsNullOrWhiteSpace(Path.GetExtension(uri.AbsolutePath)))
+            {
+                var knownStem = UrlTools.CleanName(Path.GetFileNameWithoutExtension(uri.AbsolutePath), "asset");
+                var knownFile = Path.Combine(_outputRoot, knownFolder, $"{knownStem}-{UrlTools.Hash(uri.AbsoluteUri)}{knownExtension}");
+                if (File.Exists(knownFile))
+                {
+                    _assets[key] = knownFile;
+                    await SaveAssetManifestAsync().ConfigureAwait(false);
+                    return knownFile;
+                }
+            }
             using var response = await _session.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode) return null;
             var contentType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
@@ -277,6 +393,15 @@ public sealed partial class SiteDownloader(SiteSession session)
             var stem = UrlTools.CleanName(Path.GetFileNameWithoutExtension(uri.AbsolutePath), "asset");
             var file = Path.Combine(_outputRoot, folder, $"{stem}-{UrlTools.Hash(uri.AbsoluteUri)}{extension}");
             var bytes = await ReadContentWithProgressAsync(response.Content, uri, "در حال دانلود منبع صفحه", token).ConfigureAwait(false);
+            var contentHash = Convert.ToHexString(SHA256.HashData(bytes));
+            // Content-level deduplication is intentionally applied to images. CSS files can contain relative
+            // imports, so sharing a CSS file solely because its bytes match could break those relative paths.
+            if (folder == "Img" && _contentAssets.TryGetValue(contentHash, out var duplicate) && File.Exists(duplicate))
+            {
+                _assets[key] = duplicate;
+                await SaveAssetManifestAsync().ConfigureAwait(false);
+                return duplicate;
+            }
             if (folder == "CSS")
             {
                 var css = DecodeText(bytes, response.Content.Headers.ContentType?.CharSet);
@@ -284,15 +409,74 @@ public sealed partial class SiteDownloader(SiteSession session)
                 await File.WriteAllTextAsync(file, css, new UTF8Encoding(false), token).ConfigureAwait(false);
             }
             else await File.WriteAllBytesAsync(file, bytes, token).ConfigureAwait(false);
-            _assets[uri.AbsoluteUri] = file;
-            return file;
+            var canonical = folder == "Img" ? _contentAssets.GetOrAdd(contentHash, file) : file;
+            if (!canonical.Equals(file, StringComparison.OrdinalIgnoreCase))
+            {
+                try { File.Delete(file); } catch { }
+            }
+            _assets[key] = canonical;
+            await SaveAssetManifestAsync().ConfigureAwait(false);
+            return canonical;
         }
         catch (OperationCanceledException) { throw; }
         catch { return null; }
         finally { gate.Release(); }
     }
 
-    private static ResourceItem? FindResource(DownloadItem page, Uri resource) => page.Resources.FirstOrDefault(item => item.Url.Equals(resource.AbsoluteUri, StringComparison.OrdinalIgnoreCase));
+    private void LoadAssetManifest()
+    {
+        if (_assetManifestLoaded) return;
+        _assetManifestLoaded = true;
+        try
+        {
+            if (!File.Exists(_assetManifestFile)) return;
+            var manifest = JsonSerializer.Deserialize<AssetManifest>(File.ReadAllText(_assetManifestFile));
+            if (manifest is null) return;
+            foreach (var pair in manifest.Urls.Where(x => !string.IsNullOrWhiteSpace(x.Key) && File.Exists(x.Value)))
+                _assets[pair.Key] = pair.Value;
+            foreach (var pair in manifest.ContentHashes.Where(x => !string.IsNullOrWhiteSpace(x.Key) && File.Exists(x.Value)))
+                _contentAssets[pair.Key] = pair.Value;
+        }
+        catch
+        {
+            // The manifest is an optimization; a malformed optional file must not break a download.
+        }
+    }
+
+    private async Task SaveAssetManifestAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_assetManifestFile)) return;
+        await _assetManifestGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var manifest = new AssetManifest
+            {
+                Urls = _assets.Where(x => File.Exists(x.Value)).ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
+                ContentHashes = _contentAssets.Where(x => File.Exists(x.Value)).ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase)
+            };
+            var directory = Path.GetDirectoryName(_assetManifestFile)!;
+            Directory.CreateDirectory(directory);
+            var temporary = Path.Combine(directory, $".assets-manifest.{Guid.NewGuid():N}.tmp");
+            await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 32 * 1024, FileOptions.WriteThrough | FileOptions.Asynchronous))
+            {
+                await JsonSerializer.SerializeAsync(stream, manifest, new JsonSerializerOptions { WriteIndented = true }).ConfigureAwait(false);
+                await stream.FlushAsync().ConfigureAwait(false);
+                stream.Flush(true);
+            }
+            File.Move(temporary, _assetManifestFile, true);
+        }
+        catch
+        {
+            // Optional optimization; never fail a valid download because the manifest cannot be saved.
+        }
+        finally
+        {
+            _assetManifestGate.Release();
+        }
+    }
+
+    private static ResourceItem? FindResource(DownloadItem page, Uri resource) =>
+        page.Resources.FirstOrDefault(item => UrlTools.ResourceCacheKey(new Uri(item.Url)).Equals(UrlTools.ResourceCacheKey(resource), StringComparison.OrdinalIgnoreCase));
 
     private async Task<string> RewriteCssAsync(string css, Uri cssUri, string cssFile, CancellationToken token)
     {
@@ -321,7 +505,9 @@ public sealed partial class SiteDownloader(SiteSession session)
     {
         uri = null!;
         if (string.IsNullOrWhiteSpace(value) || value.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || value.StartsWith("blob:", StringComparison.OrdinalIgnoreCase) || value.StartsWith('#')) return false;
-        return Uri.TryCreate(page, WebUtility.HtmlDecode(value.Trim()), out uri!) && uri.Scheme is "http" or "https";
+        if (!Uri.TryCreate(page, WebUtility.HtmlDecode(value.Trim()), out var candidate) || candidate.Scheme is not ("http" or "https")) return false;
+        uri = UrlTools.NormalizeResourceUri(candidate);
+        return true;
     }
 
     private static string Relative(string fromFile, string toFile) => Path.GetRelativePath(Path.GetDirectoryName(fromFile)!, toFile).Replace('\\', '/');

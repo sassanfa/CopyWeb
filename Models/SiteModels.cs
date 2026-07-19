@@ -93,6 +93,8 @@ public sealed class ProxyOptions
     public int TimeoutSeconds { get; init; } = 45;
     public int RetryCount { get; init; } = 2;
     public int RetryDelayMilliseconds { get; init; } = 750;
+    public int MaxDownloadSpeedKbps { get; init; }
+    public int MaxConnectionsPerDomain { get; init; } = 2;
     public string UserAgent { get; init; } = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 CopyWeb/1.0";
     public Dictionary<string, string> Headers { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public string CookieHeader { get; init; } = string.Empty;

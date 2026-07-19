@@ -22,6 +22,24 @@ internal static class UrlTools
         return builder.Uri;
     }
 
+    public static Uri NormalizeResourceUri(Uri uri)
+    {
+        var builder = new UriBuilder(uri) { Fragment = string.Empty };
+        return builder.Uri;
+    }
+
+    public static string ResourceCacheKey(Uri uri)
+    {
+        var normalized = NormalizeResourceUri(uri);
+        var extension = Path.GetExtension(normalized.AbsolutePath).ToLowerInvariant();
+        if (extension is not (".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" or ".svg" or ".ico" or ".avif" or ".bmp"))
+            return normalized.AbsoluteUri;
+
+        // Static image URLs often differ only by a cache-busting query (?v=..., ?ver=...).
+        var builder = new UriBuilder(normalized) { Query = string.Empty, Fragment = string.Empty };
+        return builder.Uri.AbsoluteUri;
+    }
+
     public static bool IsLikelyPageUrl(Uri uri) =>
         !IgnoredExtensions.Any(x => uri.AbsolutePath.EndsWith(x, StringComparison.OrdinalIgnoreCase));
 

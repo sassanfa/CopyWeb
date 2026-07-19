@@ -26,7 +26,7 @@ public sealed class AboutForm : Form
         title.TextAlign = ContentAlignment.MiddleCenter;
 
         var details = UiTheme.Label(
-            $"CopyWeb Created by SassanFa\nDate : {DateTime.Now:yyyy-MM-dd}\nVersion 1.1.2\nEmail : Sassanfa@gmail.com",
+            $"CopyWeb Created by SassanFa\nDate : {DateTime.Now:yyyy-MM-dd}\nVersion 1.2.0\nEmail : Sassanfa@gmail.com",
             12,
             color: UiTheme.Text);
         details.AutoSize = false;

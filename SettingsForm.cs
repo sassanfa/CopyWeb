@@ -14,6 +14,9 @@ public sealed class SettingsForm : Form
     private readonly TextBox _headers = new();
     private readonly TextBox _cookies = new();
     private readonly CheckBox _renderJavaScript = new();
+    private readonly CheckBox _compactMode = new();
+    private readonly CheckBox _apiEnabled = new();
+    private readonly NumericUpDown _apiPort = new();
     private Color _primary;
     private Color _background;
     private Color _surface;
@@ -28,8 +31,8 @@ public sealed class SettingsForm : Form
 
         Text = "تنظیمات برنامه";
         StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(760, 700);
-        MinimumSize = new Size(680, 620);
+        Size = new Size(760, 780);
+        MinimumSize = new Size(680, 700);
         Font = UiTheme.NormalFont;
         RightToLeft = RightToLeft.Yes;
         BackColor = UiTheme.Background;
@@ -87,7 +90,12 @@ public sealed class SettingsForm : Form
         var cookiesLabel = UiTheme.Label("Cookie سفارشی (اختیاری)", 10, color: UiTheme.Muted); cookiesLabel.Location = new Point(22, 500);
         _cookies.Text = current.CustomCookies; _cookies.Location = new Point(22, 525); _cookies.Width = 640; _cookies.Height = 28; _cookies.BorderStyle = BorderStyle.FixedSingle; _cookies.RightToLeft = RightToLeft.No;
 
-        card.Controls.AddRange([presetLabel, _preset, primaryLabel, _primaryColor, backgroundLabel, _backgroundColor, _saveLogs, hint, languageLabel, _language, _renderJavaScript, agentLabel, _userAgent, headersLabel, _headers, cookiesLabel, _cookies]);
+        _compactMode.Text = "حالت Compact برای نمایش فشرده‌تر"; _compactMode.AutoSize = true; _compactMode.Checked = current.CompactMode; _compactMode.Location = new Point(22, 575);
+        _apiEnabled.Text = "فعال‌سازی API محلی فقط روی همین سیستم"; _apiEnabled.AutoSize = true; _apiEnabled.Checked = current.EnableLocalApi; _apiEnabled.Location = new Point(22, 610);
+        _apiPort.Minimum = 1024; _apiPort.Maximum = 65535; _apiPort.Value = Math.Clamp(current.LocalApiPort, 1024, 65535); _apiPort.Width = 90; _apiPort.Location = new Point(300, 606);
+        var apiHint = UiTheme.Label("GET /api/status   GET /api/projects   POST /api/stop", 8, color: UiTheme.Muted); apiHint.Location = new Point(22, 650); apiHint.AutoSize = true; apiHint.RightToLeft = RightToLeft.No;
+
+        card.Controls.AddRange([presetLabel, _preset, primaryLabel, _primaryColor, backgroundLabel, _backgroundColor, _saveLogs, hint, languageLabel, _language, _renderJavaScript, agentLabel, _userAgent, headersLabel, _headers, cookiesLabel, _cookies, _compactMode, _apiEnabled, _apiPort, apiHint]);
 
         var buttons = new FlowLayoutPanel
         {
@@ -185,7 +193,10 @@ public sealed class SettingsForm : Form
             RenderJavaScript = _renderJavaScript.Checked,
             UserAgent = string.IsNullOrWhiteSpace(_userAgent.Text) ? new AppSettings().UserAgent : _userAgent.Text.Trim(),
             CustomHeaders = ParseHeaders(_headers.Text),
-            CustomCookies = _cookies.Text.Trim()
+            CustomCookies = _cookies.Text.Trim(),
+            CompactMode = _compactMode.Checked,
+            EnableLocalApi = _apiEnabled.Checked,
+            LocalApiPort = (int)_apiPort.Value
         };
         var previous = AppSettingsStore.Load();
         result.ProxyKind = previous.ProxyKind;
@@ -199,6 +210,11 @@ public sealed class SettingsForm : Form
         result.DelayMilliseconds = previous.DelayMilliseconds;
         result.MaxConcurrentDownloads = previous.MaxConcurrentDownloads;
         result.MinimumFreeDiskSpaceMb = previous.MinimumFreeDiskSpaceMb;
+        result.MaxDownloadSpeedKbps = previous.MaxDownloadSpeedKbps;
+        result.MaxConnectionsPerDomain = previous.MaxConnectionsPerDomain;
+        result.CompactMode = previous.CompactMode;
+        result.EnableLocalApi = previous.EnableLocalApi;
+        result.LocalApiPort = previous.LocalApiPort;
         result.ReadSitemaps = previous.ReadSitemaps;
         result.FollowCanonicalLinks = previous.FollowCanonicalLinks;
         result.ProxyProfiles = previous.ProxyProfiles;
