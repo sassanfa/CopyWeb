@@ -122,8 +122,10 @@ dotnet publish CopyWeb.csproj `
 
 - `CopyWeb-Setup-1.2.0.exe` — نصب‌کننده‌ی Windows
 - `CopyWeb.exe` — اجرای Portable تک‌فایلی
+- `CopyWeb-Portable.exe` — نام جایگزین نسخه‌ی Portable
 - `CopyWeb-Portable-1.2.0.zip` — بسته‌ی Portable
 - `CLI.md` — راهنمای کامل خط فرمان
+- `RELEASE_NOTES-1.2.0.md` — متن Release
 
 ## CLI و API محلی
 
