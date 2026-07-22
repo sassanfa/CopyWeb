@@ -13,7 +13,11 @@ public sealed class LinksForm : Form
     private readonly HashSet<string> _expanded = new(StringComparer.OrdinalIgnoreCase);
     private readonly DataGridView _grid = new();
     private readonly TextBox _search = new();
+    private readonly TextBox _domainFilter = new();
+    private readonly TextBox _minSize = new();
+    private readonly TextBox _maxSize = new();
     private readonly ComboBox _stateFilter = new();
+    private readonly ComboBox _kindFilter = new();
     private readonly Label _count = UiTheme.Label(string.Empty, 9, color: UiTheme.Muted);
 
     public IReadOnlyList<DownloadItem> Items => _items.ToList();
@@ -37,7 +41,7 @@ public sealed class LinksForm : Form
 
     private void BuildUi()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 112, BackColor = Color.White, Padding = new Padding(24, 16, 24, 12) };
+        var header = new Panel { Dock = DockStyle.Top, Height = 154, BackColor = Color.White, Padding = new Padding(24, 16, 24, 12) };
         var title = UiTheme.Label("لینک‌ها و منابع مرتبط پیدا شده", 16, FontStyle.Bold);
         title.Location = new Point(24, 14);
         _count.Location = new Point(26, 48);
@@ -52,7 +56,13 @@ public sealed class LinksForm : Form
         _stateFilter.Width = 145;
         _stateFilter.Location = new Point(420, 70);
         _stateFilter.SelectedIndexChanged += (_, _) => RebuildRows();
-        header.Controls.AddRange([title, _count, _search, _stateFilter]);
+        _kindFilter.DropDownStyle = ComboBoxStyle.DropDownList;
+        _kindFilter.Items.AddRange(["همه انواع", "تصویر", "CSS", "JavaScript", "فونت", "رسانه", "فایل"]);
+        _kindFilter.SelectedIndex = 0; _kindFilter.Width = 120; _kindFilter.Location = new Point(575, 70); _kindFilter.SelectedIndexChanged += (_, _) => RebuildRows();
+        _domainFilter.PlaceholderText = "دامنه..."; _domainFilter.Width = 170; _domainFilter.Height = 30; _domainFilter.Location = new Point(24, 112); _domainFilter.TextChanged += (_, _) => RebuildRows();
+        _minSize.PlaceholderText = "حداقل KB"; _minSize.Width = 100; _minSize.Height = 30; _minSize.Location = new Point(205, 112); _minSize.TextChanged += (_, _) => RebuildRows();
+        _maxSize.PlaceholderText = "حداکثر KB"; _maxSize.Width = 100; _maxSize.Height = 30; _maxSize.Location = new Point(312, 112); _maxSize.TextChanged += (_, _) => RebuildRows();
+        header.Controls.AddRange([title, _count, _search, _stateFilter, _kindFilter, _domainFilter, _minSize, _maxSize]);
 
         _grid.Dock = DockStyle.Fill;
         _grid.BackgroundColor = Color.White;
@@ -173,14 +183,24 @@ public sealed class LinksForm : Form
     {
         var term = _search.Text.Trim();
         var stateMatches = MatchesState(item.State);
-        return stateMatches && (term.Length == 0 || item.Url.Contains(term, StringComparison.OrdinalIgnoreCase) || item.Title.Contains(term, StringComparison.OrdinalIgnoreCase));
+        return stateMatches && MatchesDomain(item.Url) && (term.Length == 0 || item.Url.Contains(term, StringComparison.OrdinalIgnoreCase) || item.Title.Contains(term, StringComparison.OrdinalIgnoreCase));
     }
 
     private bool MatchesResourceFilter(ResourceItem resource)
     {
         var term = _search.Text.Trim();
-        return MatchesState(resource.State) && (term.Length == 0 || resource.Url.Contains(term, StringComparison.OrdinalIgnoreCase) || KindLabel(resource.Kind).Contains(term, StringComparison.OrdinalIgnoreCase));
+        var kindMatches = _kindFilter.SelectedIndex <= 0 || KindLabel(resource.Kind).Equals(_kindFilter.SelectedItem?.ToString(), StringComparison.OrdinalIgnoreCase);
+        var minKb = ParseSize(_minSize.Text); var maxKb = ParseSize(_maxSize.Text); var sizeMatches = (!minKb.HasValue || resource.SizeBytes >= minKb.Value * 1024) && (!maxKb.HasValue || resource.SizeBytes <= maxKb.Value * 1024);
+        return MatchesState(resource.State) && kindMatches && sizeMatches && MatchesDomain(resource.Url) && (term.Length == 0 || resource.Url.Contains(term, StringComparison.OrdinalIgnoreCase) || KindLabel(resource.Kind).Contains(term, StringComparison.OrdinalIgnoreCase));
     }
+
+    private bool MatchesDomain(string url)
+    {
+        var domain = _domainFilter.Text.Trim();
+        return domain.Length == 0 || (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Host.Contains(domain, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static long? ParseSize(string value) => long.TryParse(value.Trim(), out var size) && size >= 0 ? size : null;
 
     private bool MatchesState(LinkState state) => _stateFilter.SelectedIndex switch
     {

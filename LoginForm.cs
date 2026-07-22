@@ -29,16 +29,28 @@ public sealed class LoginForm : Form
 
     private void BuildUi()
     {
-        var top = new Panel { Dock = DockStyle.Top, Height = 112, BackColor = UiTheme.Surface, Padding = new Padding(18, 12, 18, 8) };
+        // Reserve a dedicated action row so the buttons never overlap the status
+        // text or the WebView2 surface below it.
+        var top = new Panel { Dock = DockStyle.Top, Height = 154, BackColor = UiTheme.Surface, Padding = new Padding(18, 12, 18, 8) };
         var title = UiTheme.Label("ورود به سایت", 14, FontStyle.Bold); title.Location = new Point(18, 10);
         var help = UiTheme.Label("با حساب خود وارد شوید؛ پس از ورود روی «استفاده از نشست» بزنید. رمز عبور در CopyWeb ذخیره نمی‌شود.", 9, color: UiTheme.Muted); help.Location = new Point(18, 40); help.AutoSize = false; help.Width = 980; help.Height = 24;
         _status.Location = new Point(18, 67); _status.AutoSize = false; _status.Width = 700; _status.Height = 22;
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 38, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
-        var use = UiTheme.Button("استفاده از نشست", UiTheme.Primary); use.Width = 150; use.Click += async (_, _) => await ReadCookiesAsync();
-        var cancel = UiTheme.Button("لغو", Color.White); cancel.Tag = "secondary-button"; cancel.Width = 90; cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
-        actions.Controls.AddRange([cancel, use]);
+        var actions = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 38,
+            FlowDirection = FlowDirection.RightToLeft,
+            WrapContents = false,
+            Padding = new Padding(0, 3, 0, 0),
+            RightToLeft = RightToLeft.No
+        };
+        var use = UiTheme.Button("استفاده از نشست", UiTheme.Primary); use.Width = 150; use.Height = 30; use.Margin = new Padding(0, 0, 8, 0); use.Click += async (_, _) => await ReadCookiesAsync();
+        var cancel = UiTheme.Button("لغو", Color.White); cancel.Tag = "secondary-button"; cancel.Width = 90; cancel.Height = 30; cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
+        // FlowDirection=RightToLeft puts the primary action on the right and
+        // the cancel action beside it, away from the web content.
+        actions.Controls.AddRange([use, cancel]);
         top.Controls.AddRange([title, help, _status, _remember, actions]);
-        _remember.Location = new Point(360, 68);
+        _remember.Location = new Point(18, 76);
         Controls.Add(_browser); Controls.Add(top); top.BringToFront();
     }
 

@@ -347,7 +347,7 @@ public sealed partial class SiteDownloader(SiteSession session)
                 var rewritten = Relative(pageFile, local);
                 element.SetAttribute(attribute, rewritten);
                 if (attribute is "data-src" or "data-lazy-src" or "data-original" or "data-lazy" or "data-url" or "data-image" or "data-image-src" or "data-fallback" or "data-bg" or "data-background" or "data-background-image" or "data-fsrc") element.SetAttribute("src", rewritten);
-                if (selection is not null) { selection.State = LinkState.Downloaded; selection.Error = null; }
+                if (selection is not null) { selection.State = LinkState.Downloaded; selection.Error = null; selection.SizeBytes = File.Exists(local) ? new FileInfo(local).Length : 0; }
             }
             else if (selection is not null) { selection.State = LinkState.Failed; selection.Error = "منبع قابل دریافت نیست"; }
         }
@@ -365,7 +365,7 @@ public sealed partial class SiteDownloader(SiteSession session)
                 if (local is not null)
                 {
                     rewritten.Add(Relative(pageFile, local) + (pieces.Length > 1 ? " " + pieces[1] : ""));
-                    if (selection is not null) { selection.State = LinkState.Downloaded; selection.Error = null; }
+                    if (selection is not null) { selection.State = LinkState.Downloaded; selection.Error = null; selection.SizeBytes = File.Exists(local) ? new FileInfo(local).Length : 0; }
                 }
             }
             if (rewritten.Count > 0) { image.SetAttribute(srcsetAttribute, string.Join(", ", rewritten)); if (srcsetAttribute == "data-lazy-srcset") image.SetAttribute("srcset", string.Join(", ", rewritten)); }

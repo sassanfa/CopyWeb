@@ -296,6 +296,13 @@ public sealed class SiteCrawler(SiteSession session)
             foreach (Match match in Regex.Matches(style.TextContent ?? string.Empty, "url\\(\\s*(['\"]?)([^'\")]+)\\1\\s*\\)", RegexOptions.IgnoreCase))
                 Add(match.Groups[2].Value, ResourceKind.Image);
 
+        // Some themes put image candidates in JSON, custom elements or inline
+        // scripts rather than a normal img/srcset attribute. Scan the raw
+        // markup as a final safety net so WebP/AVIF files are not missed.
+        var rawMarkup = document.DocumentElement?.OuterHtml ?? string.Empty;
+        foreach (Match match in Regex.Matches(rawMarkup, "(?i)(?:(?:https?:)?//|/)[^\"'\\s<>),;]+\\.(?:webp|avif)(?:\\?[^\"'\\s<>),;]*)?"))
+            Add(match.Value, ResourceKind.Image);
+
         void AddSrcSet(string? value)
         {
             if (string.IsNullOrWhiteSpace(value)) return;

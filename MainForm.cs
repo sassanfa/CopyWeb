@@ -46,6 +46,8 @@ public partial class MainForm : Form
     private readonly Button _testProxy = UiTheme.Button("تست پروکسی", Color.FromArgb(210, 222, 238));
     private readonly Button _login = UiTheme.Button("ورود به سایت", Color.FromArgb(232, 237, 245));
     private readonly Button _advancedModeButton = UiTheme.Button("پیشرفته", UiTheme.Danger);
+    private readonly Button _copyWeb = UiTheme.Button("کپی وبی", Color.FromArgb(216, 231, 246));
+    private readonly Button _liveArchive = UiTheme.Button("ذخیره زنده", Color.FromArgb(226, 239, 231));
     private readonly List<Control> _advancedControls = [];
     private Panel? _settingsCard;
     private Panel? _proxyCard;
@@ -132,14 +134,16 @@ public partial class MainForm : Form
         content.Controls.Add(leftColumn);
         content.Controls.Add(rightColumn);
 
-        var operations = UiTheme.Card(); operations.Dock = DockStyle.Top; operations.Height = 376;
+        var operations = UiTheme.Card(); operations.Dock = DockStyle.Top; operations.Height = 494;
         var operationsTitle = UiTheme.Label("عملیات", 13, FontStyle.Bold); operationsTitle.Location = new Point(22, 18);
         _start.Width = 242; _start.Height = 48; _start.Location = new Point(22, 58); _start.Click += StartClick;
         _resume.Tag = "accent-button"; _resume.Width = 242; _resume.Height = 48; _resume.Location = new Point(22, 116); _resume.Click += ResumeClick;
         _stop.Tag = "danger-button"; _stop.Width = 242; _stop.Height = 48; _stop.Location = new Point(22, 174); _stop.Enabled = false; _stop.Click += (_, _) => _cts?.Cancel();
         _testProxy.Tag = "secondary-button"; _testProxy.ForeColor = UiTheme.Text; _testProxy.Width = 242; _testProxy.Height = 48; _testProxy.Location = new Point(22, 232); _testProxy.Click += TestProxyClick;
         var tutorial = UiTheme.Button("آموزش", Color.FromArgb(226, 231, 239)); tutorial.Tag = "secondary-button"; tutorial.ForeColor = UiTheme.Text; tutorial.Width = 242; tutorial.Height = 48; tutorial.Location = new Point(22, 290); tutorial.Click += (_, _) => ShowTutorial();
-        operations.Controls.AddRange([operationsTitle, _start, _resume, _stop, _testProxy, tutorial]);
+        _copyWeb.Tag = "secondary-button"; _copyWeb.ForeColor = UiTheme.Text; _copyWeb.Width = 242; _copyWeb.Height = 48; _copyWeb.Location = new Point(22, 348); _copyWeb.Click += CopyWebClick;
+        _liveArchive.Tag = "secondary-button"; _liveArchive.ForeColor = UiTheme.Text; _liveArchive.Width = 242; _liveArchive.Height = 48; _liveArchive.Location = new Point(22, 406); _liveArchive.Click += LiveArchiveClick;
+        operations.Controls.AddRange([operationsTitle, _start, _resume, _stop, _testProxy, tutorial, _copyWeb, _liveArchive]);
 
         var info = UiTheme.Card(); info.Dock = DockStyle.Fill; info.Margin = new Padding(0, 14, 0, 0);
         var infoTitle = UiTheme.Label("اطلاعات پروژه", 12, FontStyle.Bold); infoTitle.Location = new Point(22, 18); infoTitle.AutoSize = false; infoTitle.Width = 242; infoTitle.Height = 24; infoTitle.TextAlign = ContentAlignment.MiddleRight;
@@ -220,7 +224,7 @@ public partial class MainForm : Form
         logCard.Controls.AddRange([logTitle, clear, _log]);
         leftColumn.Controls.Add(logCard); leftColumn.Controls.Add(output); leftColumn.Controls.Add(proxy); leftColumn.Controls.Add(settings);
 
-        _advancedControls.AddRange([_login, maxLabel, _maxPages, depthLabel, _depth, _subdomains, _robots, _sitemaps, _canonical, proxy, output]);
+        _advancedControls.AddRange([_login, maxLabel, _maxPages, depthLabel, _depth, _subdomains, _robots, _sitemaps, _canonical, proxy, output, _liveArchive]);
         SetAdvancedMode(false);
 
         LoadSavedSettings();
@@ -243,7 +247,7 @@ public partial class MainForm : Form
         var reports = NavButton("📊   گزارش‌ها", false); reports.Click += (_, _) => ShowReports();
         var about = NavButton("ⓘ   درباره برنامه", false); about.Click += (_, _) => ShowAbout();
         nav.Controls.AddRange([home, projects, settings, reports, about]);
-        var version = UiTheme.Label("نسخه 1.3.1", 9, color: Color.FromArgb(215, 232, 255)); version.Dock = DockStyle.Bottom; version.TextAlign = ContentAlignment.MiddleCenter; version.Height = 30;
+        var version = UiTheme.Label("نسخه 1.3.2", 9, color: Color.FromArgb(215, 232, 255)); version.Dock = DockStyle.Bottom; version.TextAlign = ContentAlignment.MiddleCenter; version.Height = 30;
         sidebar.Controls.Add(version); sidebar.Controls.Add(nav); sidebar.Controls.Add(brand);
         return sidebar;
     }
@@ -410,6 +414,56 @@ public partial class MainForm : Form
     private void ShowTutorial()
     {
         using var form = new TutorialForm();
+        form.ShowDialog(this);
+    }
+
+    private void LiveArchiveClick(object? sender, EventArgs e)
+    {
+        if (_cts is not null)
+        {
+            MessageBox.Show(this, "ابتدا عملیات فعلی را متوقف کنید تا ذخیره زنده اجرا شود.", "ذخیره زنده", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        if (!Uri.TryCreate(_url.Text.Trim(), UriKind.Absolute, out var root) || root.Scheme is not ("http" or "https"))
+        {
+            MessageBox.Show(this, "ابتدا یک آدرس معتبر وارد کنید.", "ذخیره زنده", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _url.Focus();
+            return;
+        }
+        var output = _output.Text.Trim();
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            using var dialog = new FolderBrowserDialog { Description = "پوشه ذخیره حالت زنده را انتخاب کنید" };
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            output = dialog.SelectedPath;
+            _output.Text = output;
+        }
+        using var form = new LiveArchiveForm(root, output);
+        form.ShowDialog(this);
+    }
+
+    private void CopyWebClick(object? sender, EventArgs e)
+    {
+        if (_cts is not null)
+        {
+            MessageBox.Show(this, "ابتدا عملیات فعلی را متوقف کنید تا حالت کپی وبی اجرا شود.", "کپی وبی", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        if (!Uri.TryCreate(_url.Text.Trim(), UriKind.Absolute, out var root) || root.Scheme is not ("http" or "https"))
+        {
+            MessageBox.Show(this, "ابتدا یک آدرس معتبر وب وارد کنید.", "کپی وبی", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _url.Focus();
+            return;
+        }
+        var output = _output.Text.Trim();
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            using var dialog = new FolderBrowserDialog { Description = "پوشه ذخیره حالت کپی وبی را انتخاب کنید" };
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            output = dialog.SelectedPath;
+            _output.Text = output;
+        }
+        using var form = new LiveArchiveForm(root, output, manualNavigation: true);
         form.ShowDialog(this);
     }
 

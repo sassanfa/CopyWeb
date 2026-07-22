@@ -93,6 +93,12 @@ public sealed class ProjectsForm : Form
         var search = UiTheme.Button("جست‌وجوی متن", Color.FromArgb(118, 137, 157));
         search.Width = 120;
         search.Click += (_, _) => SearchProject();
+        var chat = UiTheme.Button("چت با آرشیو", Color.FromArgb(118, 137, 157));
+        chat.Width = 120;
+        chat.Click += (_, _) => ChatProject();
+        var graph = UiTheme.Button("نقشه سایت", Color.FromArgb(118, 137, 157));
+        graph.Width = 105;
+        graph.Click += (_, _) => GraphProject();
         var snapshots = UiTheme.Button("Snapshot / Diff", Color.FromArgb(118, 137, 157));
         snapshots.Width = 135;
         snapshots.Click += (_, _) => OpenSnapshots();
@@ -129,7 +135,7 @@ public sealed class ProjectsForm : Form
         var close = UiTheme.Button("بستن", UiTheme.Primary);
         close.Width = 95;
         close.Click += (_, _) => Close();
-        buttons.Controls.AddRange([close, screenshots, publish, watch, dashboard, preview, validate, search, snapshots, loadProject, restore, backup, copy, rename, schedule, resume, folder, view, refresh]);
+        buttons.Controls.AddRange([close, screenshots, publish, watch, dashboard, graph, chat, preview, validate, search, snapshots, loadProject, restore, backup, copy, rename, schedule, resume, folder, view, refresh]);
 
         root.Controls.Add(card);
         root.Controls.Add(buttons);
@@ -260,6 +266,22 @@ public sealed class ProjectsForm : Form
         var entry = SelectedEntry;
         if (entry is null) return;
         using var form = new ArchiveSearchForm(entry.StoragePath);
+        form.ShowDialog(this);
+    }
+
+    private void ChatProject()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        using var form = new ArchiveChatForm(entry.StoragePath);
+        form.ShowDialog(this);
+    }
+
+    private void GraphProject()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        using var form = new SiteGraphForm(entry.FileName);
         form.ShowDialog(this);
     }
 
