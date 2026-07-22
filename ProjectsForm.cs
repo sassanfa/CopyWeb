@@ -10,6 +10,7 @@ public sealed class ProjectsForm : Form
     private readonly List<ProjectEntry> _entries = [];
 
     public string? SelectedProjectFile { get; private set; }
+    public string? LoadedProjectFile { get; private set; }
 
     public ProjectsForm()
     {
@@ -83,6 +84,18 @@ public sealed class ProjectsForm : Form
         resume.Tag = "accent-button";
         resume.Width = 130;
         resume.Click += (_, _) => ResumeProject();
+        var loadProject = UiTheme.Button("بارگذاری آدرس", Color.FromArgb(118, 137, 157));
+        loadProject.Width = 125;
+        loadProject.Click += (_, _) => LoadProjectForEditing();
+        var validate = UiTheme.Button("اعتبارسنجی", Color.FromArgb(118, 137, 157));
+        validate.Width = 110;
+        validate.Click += (_, _) => ValidateProject();
+        var search = UiTheme.Button("جست‌وجوی متن", Color.FromArgb(118, 137, 157));
+        search.Width = 120;
+        search.Click += (_, _) => SearchProject();
+        var snapshots = UiTheme.Button("Snapshot / Diff", Color.FromArgb(118, 137, 157));
+        snapshots.Width = 135;
+        snapshots.Click += (_, _) => OpenSnapshots();
         var backup = UiTheme.Button("پشتیبان‌گیری", Color.FromArgb(118, 137, 157));
         backup.Width = 125;
         backup.Click += async (_, _) => await BackupProjectAsync();
@@ -116,7 +129,7 @@ public sealed class ProjectsForm : Form
         var close = UiTheme.Button("بستن", UiTheme.Primary);
         close.Width = 95;
         close.Click += (_, _) => Close();
-        buttons.Controls.AddRange([close, screenshots, publish, watch, dashboard, preview, restore, backup, copy, rename, schedule, resume, folder, view, refresh]);
+        buttons.Controls.AddRange([close, screenshots, publish, watch, dashboard, preview, validate, search, snapshots, loadProject, restore, backup, copy, rename, schedule, resume, folder, view, refresh]);
 
         root.Controls.Add(card);
         root.Controls.Add(buttons);
@@ -223,6 +236,39 @@ public sealed class ProjectsForm : Form
         SelectedProjectFile = entry.FileName;
         DialogResult = DialogResult.OK;
         Close();
+    }
+
+    private void LoadProjectForEditing()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        LoadedProjectFile = entry.FileName;
+        DialogResult = DialogResult.OK;
+        Close();
+    }
+
+    private void ValidateProject()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        using var form = new ArchiveValidationForm(entry.FileName);
+        form.ShowDialog(this);
+    }
+
+    private void SearchProject()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        using var form = new ArchiveSearchForm(entry.StoragePath);
+        form.ShowDialog(this);
+    }
+
+    private void OpenSnapshots()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        using var form = new SnapshotDiffForm(entry.StoragePath);
+        form.ShowDialog(this);
     }
 
     private async Task BackupProjectAsync()

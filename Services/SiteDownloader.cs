@@ -322,8 +322,17 @@ public sealed partial class SiteDownloader(SiteSession session)
         var targets = new (string Selector, string Attribute)[]
         {
             ("img[src]", "src"), ("img[data-src]", "data-src"), ("img[data-lazy-src]", "data-lazy-src"),
+            ("img[data-original]", "data-original"), ("img[data-lazy]", "data-lazy"),
+            ("img[data-url]", "data-url"), ("img[data-image]", "data-image"), ("img[data-image-src]", "data-image-src"), ("img[data-fallback]", "data-fallback"),
+            ("img[data-bg]", "data-bg"), ("img[data-background]", "data-background"), ("img[data-background-image]", "data-background-image"), ("img[data-fsrc]", "data-fsrc"),
             ("script[src]", "src"), ("link[rel~='stylesheet'][href]", "href"), ("source[src]", "src"),
-            ("source[data-src]", "data-src"), ("video[poster]", "poster"), ("audio[src]", "src"), ("input[type=image][src]", "src")
+            ("source[data-src]", "data-src"), ("source[data-srcset]", "data-srcset"),
+            ("video[poster]", "poster"), ("audio[src]", "src"), ("input[type=image][src]", "src"),
+            ("link[rel~='icon'][href], link[rel~='shortcut'][href], link[rel~='apple-touch-icon'][href]", "href"),
+            ("link[rel~='preload'][as='image'][href]", "href"),
+            ("meta[property='og:image'][content], meta[name='twitter:image'][content], meta[itemprop='image'][content]", "content"),
+            ("body[background], table[background], td[background]", "background"),
+            ("object[data]", "data"), ("embed[src]", "src"), ("svg image", "href"), ("svg image", "xlink:href")
         };
         foreach (var (selector, attribute) in targets)
         foreach (var element in document.QuerySelectorAll(selector))
@@ -337,14 +346,14 @@ public sealed partial class SiteDownloader(SiteSession session)
             {
                 var rewritten = Relative(pageFile, local);
                 element.SetAttribute(attribute, rewritten);
-                if (attribute is "data-src" or "data-lazy-src") element.SetAttribute("src", rewritten);
+                if (attribute is "data-src" or "data-lazy-src" or "data-original" or "data-lazy" or "data-url" or "data-image" or "data-image-src" or "data-fallback" or "data-bg" or "data-background" or "data-background-image" or "data-fsrc") element.SetAttribute("src", rewritten);
                 if (selection is not null) { selection.State = LinkState.Downloaded; selection.Error = null; }
             }
             else if (selection is not null) { selection.State = LinkState.Failed; selection.Error = "منبع قابل دریافت نیست"; }
         }
-        foreach (var image in document.QuerySelectorAll("img[srcset], source[srcset], img[data-lazy-srcset], source[data-lazy-srcset]"))
+        foreach (var image in document.QuerySelectorAll("img[srcset], source[srcset], img[data-srcset], source[data-srcset], img[data-lazy-srcset], source[data-lazy-srcset], img[data-original-set], source[data-original-set]"))
         {
-            var srcsetAttribute = image.HasAttribute("srcset") ? "srcset" : "data-lazy-srcset";
+            var srcsetAttribute = new[] { "srcset", "data-srcset", "data-lazy-srcset", "data-original-set" }.FirstOrDefault(image.HasAttribute) ?? "srcset";
             var rewritten = new List<string>();
             foreach (var part in (image.GetAttribute(srcsetAttribute) ?? "").Split(','))
             {
@@ -360,6 +369,24 @@ public sealed partial class SiteDownloader(SiteSession session)
                 }
             }
             if (rewritten.Count > 0) { image.SetAttribute(srcsetAttribute, string.Join(", ", rewritten)); if (srcsetAttribute == "data-lazy-srcset") image.SetAttribute("srcset", string.Join(", ", rewritten)); }
+        }
+
+        // Rewrite inline CSS backgrounds (often used for responsive WebP hero images).
+        foreach (var element in document.QuerySelectorAll("[style]"))
+        {
+            var style = element.GetAttribute("style") ?? string.Empty;
+            foreach (Match match in CssUrlRegex().Matches(style).ToList())
+            {
+                if (!TryResourceUri(pageUri, match.Groups[2].Value, out var resource)) continue;
+                var local = await DownloadAssetAsync(resource, token).ConfigureAwait(false);
+                if (local is not null) style = style.Replace(match.Groups[2].Value, Relative(pageFile, local), StringComparison.Ordinal);
+            }
+            element.SetAttribute("style", style);
+        }
+        foreach (var styleElement in document.QuerySelectorAll("style"))
+        {
+            var css = styleElement.TextContent ?? string.Empty;
+            styleElement.TextContent = await RewriteCssAsync(css, pageUri, pageFile, token).ConfigureAwait(false);
         }
     }
 
@@ -486,7 +513,7 @@ public sealed partial class SiteDownloader(SiteSession session)
 
     private async Task<string> RewriteCssAsync(string css, Uri cssUri, string cssFile, CancellationToken token)
     {
-        foreach (var value in CssUrlRegex().Matches(css).Select(m => m.Groups[2].Value).Distinct().ToList())
+        foreach (var value in CssUrlRegex().Matches(css).Select(m => m.Groups[2].Value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList())
         {
             if (!TryResourceUri(cssUri, value, out var resource)) continue;
             var local = await DownloadAssetAsync(resource, token).ConfigureAwait(false);
@@ -500,12 +527,12 @@ public sealed partial class SiteDownloader(SiteSession session)
         var ext = Path.GetExtension(uri.AbsolutePath).ToLowerInvariant();
         if (contentType.Contains("css") || ext == ".css") return ("CSS", ".css");
         if (contentType.Contains("javascript") || ext is ".js" or ".mjs") return ("JS", ext is ".mjs" ? ".mjs" : ".js");
-        if (contentType.StartsWith("image/") || ext is ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" or ".svg" or ".ico") return ("Img", string.IsNullOrEmpty(ext) ? MimeExtension(contentType) : ext);
+        if (contentType.StartsWith("image/") || ext is ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" or ".svg" or ".ico" or ".avif" or ".bmp" or ".jxl") return ("Img", string.IsNullOrEmpty(ext) ? MimeExtension(contentType) : ext);
         if (contentType.Contains("font") || ext is ".woff" or ".woff2" or ".ttf" or ".otf" or ".eot") return ("Fonts", string.IsNullOrEmpty(ext) ? ".bin" : ext);
         return ("Files", string.IsNullOrEmpty(ext) || ext.Length > 8 ? ".bin" : ext);
     }
 
-    private static string MimeExtension(string mime) => mime.ToLowerInvariant() switch { "image/jpeg" => ".jpg", "image/png" => ".png", "image/gif" => ".gif", "image/webp" => ".webp", "image/svg+xml" => ".svg", _ => ".img" };
+    private static string MimeExtension(string mime) => mime.ToLowerInvariant() switch { "image/jpeg" => ".jpg", "image/png" => ".png", "image/gif" => ".gif", "image/webp" => ".webp", "image/avif" => ".avif", "image/bmp" => ".bmp", "image/jxl" => ".jxl", "image/svg+xml" => ".svg", _ => ".img" };
 
     private static bool TryResourceUri(Uri page, string? value, out Uri uri)
     {
@@ -518,6 +545,6 @@ public sealed partial class SiteDownloader(SiteSession session)
 
     private static string Relative(string fromFile, string toFile) => Path.GetRelativePath(Path.GetDirectoryName(fromFile)!, toFile).Replace('\\', '/');
 
-    [GeneratedRegex("""url\\(\\s*(['\\\"]?)([^'\\\")]+)\\1\\s*\\)""", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("""url\(\s*(['\"]?)([^'\")]+)\1\s*\)""", RegexOptions.IgnoreCase)]
     private static partial Regex CssUrlRegex();
 }

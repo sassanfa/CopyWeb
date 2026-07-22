@@ -56,6 +56,9 @@ public sealed class SiteSession : IDisposable
         client.DefaultRequestHeaders.UserAgent.ParseAdd(string.IsNullOrWhiteSpace(options.UserAgent)
             ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 CopyWeb/1.0"
             : options.UserAgent);
+        // Advertise modern image formats so CDNs return the actual WebP/AVIF
+        // candidate referenced by the page instead of a browser-specific fallback.
+        client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
         client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("fa-IR,fa;q=0.9,en;q=0.7");
         foreach (var header in options.Headers)
         {

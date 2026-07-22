@@ -97,7 +97,7 @@ public static class CliRunner
 
     private static void PrintHelp()
     {
-        Console.WriteLine("CopyWeb CLI 1.3.0 - headless website archiver");
+        Console.WriteLine("CopyWeb CLI 1.3.1 - headless website archiver");
         Console.WriteLine();
         Console.WriteLine("Basic:");
         Console.WriteLine("  CopyWeb.exe --cli --url https://example.com --output C:\\Sites\\example");

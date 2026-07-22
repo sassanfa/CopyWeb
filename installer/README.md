@@ -9,4 +9,4 @@ dotnet publish ..\CopyWeb.csproj --configuration Release --runtime win-x64 --sel
 2. Inno Setup 6 را نصب کنید.
 3. فایل `CopyWeb.iss` را با Inno Setup Compiler باز و روی **Compile** کلیک کنید.
 
-فایل Setup در پوشه‌ی `installer\output` با نام `CopyWeb-Setup-1.3.0.exe` ساخته می‌شود.
+فایل Setup در پوشه‌ی `installer\output` با نام `CopyWeb-Setup-1.3.1.exe` ساخته می‌شود.

@@ -32,7 +32,7 @@ internal static class UrlTools
     {
         var normalized = NormalizeResourceUri(uri);
         var extension = Path.GetExtension(normalized.AbsolutePath).ToLowerInvariant();
-        if (extension is not (".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" or ".svg" or ".ico" or ".avif" or ".bmp"))
+        if (extension is not (".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" or ".svg" or ".ico" or ".avif" or ".bmp" or ".jxl"))
             return normalized.AbsoluteUri;
 
         // Static image URLs often differ only by a cache-busting query (?v=..., ?ver=...).

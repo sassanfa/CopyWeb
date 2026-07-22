@@ -264,20 +264,42 @@ public sealed class SiteCrawler(SiteSession session)
 
         var selectors = new (string Selector, string Attribute, ResourceKind Kind)[]
         {
-            ("img[src]", "src", ResourceKind.Image), ("img[data-src]", "data-src", ResourceKind.Image),
-            ("img[data-lazy-src]", "data-lazy-src", ResourceKind.Image), ("script[src]", "src", ResourceKind.Script),
-            ("link[rel~='stylesheet'][href]", "href", ResourceKind.Stylesheet), ("link[rel~='icon'][href]", "href", ResourceKind.Image),
-            ("source[src]", "src", ResourceKind.Media), ("source[data-src]", "data-src", ResourceKind.Media),
+            ("script[src]", "src", ResourceKind.Script),
+            ("link[rel~='stylesheet'][href]", "href", ResourceKind.Stylesheet),
+            ("link[rel~='icon'][href], link[rel~='shortcut'][href], link[rel~='apple-touch-icon'][href]", "href", ResourceKind.Image),
             ("video[poster]", "poster", ResourceKind.Media), ("audio[src]", "src", ResourceKind.Media),
-            ("input[type=image][src]", "src", ResourceKind.Image)
+            ("input[type=image][src]", "src", ResourceKind.Image),
+            ("link[rel~='preload'][as='image'][href]", "href", ResourceKind.Image),
+            ("meta[property='og:image'][content], meta[name='twitter:image'][content], meta[itemprop='image'][content]", "content", ResourceKind.Image),
+            ("body[background], table[background], td[background]", "background", ResourceKind.Image),
+            ("object[data]", "data", ResourceKind.Media), ("embed[src]", "src", ResourceKind.Media)
         };
         foreach (var (selector, attribute, kind) in selectors)
         foreach (var element in document.QuerySelectorAll(selector)) Add(element.GetAttribute(attribute), kind);
 
-        foreach (var element in document.QuerySelectorAll("img[srcset], source[srcset], img[data-lazy-srcset], source[data-lazy-srcset]"))
+        // Lazy-loading libraries use many different data-* names. Read all of the
+        // common variants so WebP/AVIF candidates are not missed when src is a
+        // transparent placeholder.
+        var imageAttributes = new[] { "src", "href", "xlink:href", "data-src", "data-lazy-src", "data-original", "data-lazy", "data-url", "data-image", "data-image-src", "data-fallback", "data-bg", "data-background", "data-background-image", "data-fsrc" };
+        foreach (var element in document.QuerySelectorAll("img, picture source, source, svg image"))
         {
-            var attribute = element.HasAttribute("srcset") ? "srcset" : "data-lazy-srcset";
-            foreach (var part in (element.GetAttribute(attribute) ?? string.Empty).Split(','))
+            foreach (var attribute in imageAttributes)
+                Add(element.GetAttribute(attribute), ResourceKind.Image);
+            foreach (var attribute in new[] { "srcset", "data-srcset", "data-lazy-srcset", "data-original-set" })
+                AddSrcSet(element.GetAttribute(attribute));
+        }
+
+        foreach (var element in document.QuerySelectorAll("[style]"))
+            foreach (Match match in Regex.Matches(element.GetAttribute("style") ?? string.Empty, "url\\(\\s*(['\"]?)([^'\")]+)\\1\\s*\\)", RegexOptions.IgnoreCase))
+                Add(match.Groups[2].Value, ResourceKind.Image);
+        foreach (var style in document.QuerySelectorAll("style"))
+            foreach (Match match in Regex.Matches(style.TextContent ?? string.Empty, "url\\(\\s*(['\"]?)([^'\")]+)\\1\\s*\\)", RegexOptions.IgnoreCase))
+                Add(match.Groups[2].Value, ResourceKind.Image);
+
+        void AddSrcSet(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            foreach (var part in value.Split(','))
                 Add(part.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(), ResourceKind.Image);
         }
         return result.Values.ToList();

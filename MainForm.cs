@@ -44,11 +44,19 @@ public partial class MainForm : Form
     private readonly Button _resume = UiTheme.Button("ادامه پروژه", UiTheme.Accent);
     private readonly Button _stop = UiTheme.Button("توقف و ذخیره", UiTheme.Danger);
     private readonly Button _testProxy = UiTheme.Button("تست پروکسی", Color.FromArgb(210, 222, 238));
+    private readonly Button _login = UiTheme.Button("ورود به سایت", Color.FromArgb(232, 237, 245));
+    private readonly Button _advancedModeButton = UiTheme.Button("پیشرفته", UiTheme.Danger);
+    private readonly List<Control> _advancedControls = [];
+    private Panel? _settingsCard;
+    private Panel? _proxyCard;
+    private Panel? _outputCard;
+    private bool _advancedMode;
     private CancellationTokenSource? _cts;
     private string? _activeLogPath;
     private Stopwatch? _operationClock;
     private bool _approveCaptchaForOperation;
     private IReadOnlyList<BrowserCookie> _captchaCookies = [];
+    private IReadOnlyList<BrowserCookie> _authCookies = [];
     private DownloadMonitorForm? _downloadMonitor;
     private LocalApiServer? _apiServer;
 
@@ -105,10 +113,18 @@ public partial class MainForm : Form
         globe.Dock = DockStyle.Right;
         globe.Size = new Size(58, 58);
         globe.TextAlign = ContentAlignment.MiddleCenter;
+        _advancedModeButton.Tag = "danger-button";
+        _advancedModeButton.ForeColor = Color.White;
+        _advancedModeButton.Width = 138;
+        _advancedModeButton.Height = 34;
+        _advancedModeButton.Dock = DockStyle.Right;
+        _advancedModeButton.Margin = new Padding(0, 8, 10, 0);
+        _advancedModeButton.Click += (_, _) => SetAdvancedMode(!_advancedMode);
         top.Controls.Add(topLine);
         top.Controls.Add(subheading);
         top.Controls.Add(heading);
         top.Controls.Add(globe);
+        top.Controls.Add(_advancedModeButton);
         content.Controls.Add(top);
 
         var rightColumn = new Panel { Dock = DockStyle.Right, Width = 298, Padding = new Padding(14, 0, 0, 0) };
@@ -146,22 +162,25 @@ public partial class MainForm : Form
         rightColumn.Controls.Add(info); rightColumn.Controls.Add(operations);
 
         var settings = UiTheme.Card(); settings.Dock = DockStyle.Top; settings.Height = 342;
+        _settingsCard = settings;
         var settingsTitle = UiTheme.Label("تنظیمات دانلود", 13, FontStyle.Bold); settingsTitle.Location = new Point(22, 18);
         var urlLabel = UiTheme.Label("آدرس سایت", 10, FontStyle.Bold); urlLabel.Location = new Point(22, 52);
         ConfigureInput(_url); _url.PlaceholderText = "https://example.com"; _url.Multiline = false; _url.AutoSize = false; _url.Height = 30; _url.Location = new Point(22, 125); _url.Width = 460;
         var pasteUrl = UiTheme.Button("چسباندن", Color.FromArgb(238, 243, 250)); pasteUrl.Tag = "secondary-button"; pasteUrl.ForeColor = UiTheme.Text; pasteUrl.Width = 82; pasteUrl.Height = 30; pasteUrl.Location = new Point(490, 125); pasteUrl.Click += (_, _) => PasteUrlFromClipboard();
-        var urlLine = new Panel { BackColor = UiTheme.Border, Height = 1, Width = 460, Location = new Point(22, 175), Tag = "border" };
-        var maxLabel = UiTheme.Label("حداکثر صفحه", 9, color: UiTheme.Muted); maxLabel.Location = new Point(22, 197);
-        _maxPages.Minimum = 1; _maxPages.Maximum = 10000; _maxPages.Value = 500; _maxPages.Width = 130; _maxPages.Location = new Point(22, 223);
-        var depthLabel = UiTheme.Label("عمق لینک", 9, color: UiTheme.Muted); depthLabel.Location = new Point(172, 197);
-        _depth.Minimum = 0; _depth.Maximum = 20; _depth.Value = 3; _depth.Width = 130; _depth.Location = new Point(172, 223);
-        _subdomains.Text = "شامل زیردامنه‌ها"; _subdomains.Checked = true; _subdomains.AutoSize = true; _subdomains.Location = new Point(322, 228);
-        _robots.Text = "رعایت robots.txt"; _robots.Checked = true; _robots.AutoSize = true; _robots.Location = new Point(440, 228);
-        _sitemaps.Text = "خواندن Sitemap"; _sitemaps.Checked = true; _sitemaps.AutoSize = true; _sitemaps.Location = new Point(22, 270);
-        _canonical.Text = "پیروی از Canonical"; _canonical.Checked = true; _canonical.AutoSize = true; _canonical.Location = new Point(160, 270);
-        settings.Controls.AddRange([settingsTitle, urlLabel, _url, pasteUrl, urlLine, maxLabel, _maxPages, depthLabel, _depth, _subdomains, _robots, _sitemaps, _canonical]);
+        _login.Tag = "secondary-button"; _login.ForeColor = UiTheme.Text; _login.Width = 110; _login.Height = 30; _login.Location = new Point(490, 166); _login.Click += LoginClick;
+        var urlLine = new Panel { BackColor = UiTheme.Border, Height = 1, Width = 460, Location = new Point(22, 205), Tag = "border" };
+        var maxLabel = UiTheme.Label("حداکثر صفحه", 9, color: UiTheme.Muted); maxLabel.Location = new Point(22, 225);
+        _maxPages.Minimum = 1; _maxPages.Maximum = 10000; _maxPages.Value = 500; _maxPages.Width = 130; _maxPages.Location = new Point(22, 251);
+        var depthLabel = UiTheme.Label("عمق لینک", 9, color: UiTheme.Muted); depthLabel.Location = new Point(172, 225);
+        _depth.Minimum = 0; _depth.Maximum = 20; _depth.Value = 3; _depth.Width = 130; _depth.Location = new Point(172, 251);
+        _subdomains.Text = "شامل زیردامنه‌ها"; _subdomains.Checked = true; _subdomains.AutoSize = true; _subdomains.Location = new Point(322, 256);
+        _robots.Text = "رعایت robots.txt"; _robots.Checked = true; _robots.AutoSize = true; _robots.Location = new Point(440, 256);
+        _sitemaps.Text = "خواندن Sitemap"; _sitemaps.Checked = true; _sitemaps.AutoSize = true; _sitemaps.Location = new Point(22, 298);
+        _canonical.Text = "پیروی از Canonical"; _canonical.Checked = true; _canonical.AutoSize = true; _canonical.Location = new Point(160, 298);
+        settings.Controls.AddRange([settingsTitle, urlLabel, _url, pasteUrl, _login, urlLine, maxLabel, _maxPages, depthLabel, _depth, _subdomains, _robots, _sitemaps, _canonical]);
 
         var proxy = UiTheme.Card(); proxy.Dock = DockStyle.Top; proxy.Height = 270;
+        _proxyCard = proxy;
         var proxyTitle = UiTheme.Label("احراز هویت پروکسی (اختیاری)", 12, FontStyle.Bold); proxyTitle.Location = new Point(22, 16);
         _proxyEnabled.Text = "فعال"; _proxyEnabled.AutoSize = true; _proxyEnabled.Location = new Point(235, 19); _proxyEnabled.CheckedChanged += (_, _) => UpdateProxyControls();
         _proxyType.DropDownStyle = ComboBoxStyle.DropDownList; _proxyType.Items.AddRange(["HTTP", "HTTPS", "SOCKS5"]); _proxyType.SelectedIndex = 0; _proxyType.Width = 95; _proxyType.Location = new Point(22, 58);
@@ -188,6 +207,7 @@ public partial class MainForm : Form
         proxy.Controls.AddRange([proxyTitle, _proxyEnabled, _proxyType, _proxyAddress, _proxyPort, _proxyUser, _proxyPassword, timeoutLabel, _timeoutSeconds, retryLabel, _retryCount, delayLabel, _requestDelay, proxyHint, profiles, concurrencyLabel, _concurrency, diskLabel, _minFreeDisk, speedLabel, _speedLimit, domainLabel, _domainConnections]);
 
         var output = UiTheme.Card(); output.Dock = DockStyle.Top; output.Height = 120;
+        _outputCard = output;
         var outputTitle = UiTheme.Label("محل ذخیره", 12, FontStyle.Bold); outputTitle.Location = new Point(22, 16);
         ConfigureInput(_output); _output.PlaceholderText = "مسیر پوشه خروجی"; _output.Multiline = false; _output.AutoSize = false; _output.Height = 30; _output.Location = new Point(22, 52); _output.Width = 350;
         var browse = UiTheme.Button("انتخاب مسیر", Color.FromArgb(238, 243, 250)); browse.Tag = "secondary-button"; browse.ForeColor = UiTheme.Text; browse.Width = 115; browse.Height = 30; browse.Location = new Point(387, 49); browse.Click += BrowseOutput;
@@ -199,6 +219,9 @@ public partial class MainForm : Form
         _log.ReadOnly = true; _log.BackColor = Color.White; _log.BorderStyle = BorderStyle.None; _log.Font = new Font("Consolas", 9); _log.Location = new Point(22, 52); _log.Size = new Size(700, 100); _log.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left; _log.ScrollBars = RichTextBoxScrollBars.Vertical; _log.Tag = "log";
         logCard.Controls.AddRange([logTitle, clear, _log]);
         leftColumn.Controls.Add(logCard); leftColumn.Controls.Add(output); leftColumn.Controls.Add(proxy); leftColumn.Controls.Add(settings);
+
+        _advancedControls.AddRange([_login, maxLabel, _maxPages, depthLabel, _depth, _subdomains, _robots, _sitemaps, _canonical, proxy, output]);
+        SetAdvancedMode(false);
 
         LoadSavedSettings();
         UpdateProxyControls();
@@ -220,7 +243,7 @@ public partial class MainForm : Form
         var reports = NavButton("📊   گزارش‌ها", false); reports.Click += (_, _) => ShowReports();
         var about = NavButton("ⓘ   درباره برنامه", false); about.Click += (_, _) => ShowAbout();
         nav.Controls.AddRange([home, projects, settings, reports, about]);
-        var version = UiTheme.Label("نسخه 1.3.0", 9, color: Color.FromArgb(215, 232, 255)); version.Dock = DockStyle.Bottom; version.TextAlign = ContentAlignment.MiddleCenter; version.Height = 30;
+        var version = UiTheme.Label("نسخه 1.3.1", 9, color: Color.FromArgb(215, 232, 255)); version.Dock = DockStyle.Bottom; version.TextAlign = ContentAlignment.MiddleCenter; version.Height = 30;
         sidebar.Controls.Add(version); sidebar.Controls.Add(nav); sidebar.Controls.Add(brand);
         return sidebar;
     }
@@ -265,6 +288,20 @@ public partial class MainForm : Form
         _proxyPort.Enabled = enabled;
         _proxyUser.Enabled = enabled;
         _proxyPassword.Enabled = enabled;
+    }
+
+    private void SetAdvancedMode(bool enabled)
+    {
+        _advancedMode = enabled;
+        foreach (var control in _advancedControls) control.Visible = enabled;
+        if (_settingsCard is not null) _settingsCard.Height = enabled ? 342 : 180;
+        if (_proxyCard is not null) _proxyCard.Visible = enabled;
+        if (_outputCard is not null) _outputCard.Visible = enabled;
+        _advancedModeButton.Text = enabled ? "حالت ساده" : "پیشرفته";
+        _start.Text = enabled ? "شروع بررسی سایت" : "شروع دانلود خودکار";
+        _advancedModeButton.BackColor = UiTheme.Danger;
+        _advancedModeButton.ForeColor = Color.White;
+        _advancedModeButton.BringToFront();
     }
 
     private void LoadSavedSettings()
@@ -324,8 +361,27 @@ public partial class MainForm : Form
     private void ShowProjects()
     {
         using var form = new ProjectsForm();
-        if (form.ShowDialog(this) == DialogResult.OK && !string.IsNullOrWhiteSpace(form.SelectedProjectFile))
+        if (form.ShowDialog(this) != DialogResult.OK) return;
+        if (!string.IsNullOrWhiteSpace(form.LoadedProjectFile))
+            _ = LoadProjectForEditingAsync(form.LoadedProjectFile);
+        else if (!string.IsNullOrWhiteSpace(form.SelectedProjectFile))
             _ = ResumeFromFileAsync(form.SelectedProjectFile);
+    }
+
+    private async Task LoadProjectForEditingAsync(string fileName)
+    {
+        try
+        {
+            var project = await ProjectStorage.LoadAsync(fileName);
+            if (!Uri.TryCreate(project.RootUrl, UriKind.Absolute, out var root)) throw new InvalidDataException("آدرس پروژه معتبر نیست.");
+            _url.Text = root.AbsoluteUri;
+            _output.Text = Path.GetDirectoryName(fileName) ?? _output.Text;
+            _authCookies = AuthCookieStore.Load(Path.Combine(_output.Text, "auth.cookies"));
+            _login.Text = _authCookies.Count > 0 ? "نشست فعال" : "ورود به سایت";
+            _status.Text = "پروژه در فرم اصلی بارگذاری شد؛ آدرس را می‌توانید ویرایش کنید.";
+            FocusHome();
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "خطای بارگذاری پروژه", MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
     private void ShowSettings()
@@ -498,20 +554,55 @@ public partial class MainForm : Form
         if (!Uri.TryCreate(_url.Text.Trim(), UriKind.Absolute, out var root) || root.Scheme is not ("http" or "https"))
         { MessageBox.Show(this, "لطفاً یک آدرس معتبر HTTP یا HTTPS وارد کنید.", "آدرس نامعتبر", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         if (string.IsNullOrWhiteSpace(_output.Text)) _output.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CopyWeb", root.Host);
-        Directory.CreateDirectory(_output.Text); BeginLog(Path.Combine(_output.Text, "activity.log"), append: false); PrepareOperation();
+        Directory.CreateDirectory(_output.Text); _authCookies = _authCookies.Count > 0 ? _authCookies : AuthCookieStore.Load(Path.Combine(_output.Text, "auth.cookies")); BeginLog(Path.Combine(_output.Text, "activity.log"), append: false); PrepareOperation();
         _ = CaptureAutomaticScreenshotAsync(root, Path.Combine(_output.Text, "screenshots", "before.png"));
         try
         {
-            using var session = CreateSession(); var crawler = new SiteCrawler(session);
+            using var session = CreateSession(); session.ImportCookies(_authCookies); var crawler = new SiteCrawler(session);
             var crawlProgress = new Progress<CrawlProgress>(p => { _status.Text = p.Message; _stats.Text = $"{p.Processed} صفحه بررسی | {p.Discovered} لینک پیدا شد"; _counts.Text = $"صفحات پیدا‌شده: {p.Discovered}"; AppendLog(p.Message); });
             var links = await crawler.CrawlAsync(root, BuildCrawlOptions(), ShowCaptchaAsync, crawlProgress, _cts!.Token, checkpoint: found => ProjectStorage.SaveAsync(Path.Combine(_output.Text, "links.json"), root, found, CurrentProxySnapshot()), renderHandler: RenderPageAsync);
-            using var linksForm = new LinksForm(root, links); if (linksForm.ShowDialog(this) != DialogResult.OK) return;
-            await ProjectStorage.SaveAsync(Path.Combine(_output.Text, "links.json"), root, linksForm.Items, CurrentProxySnapshot(), _cts.Token);
-            await DownloadItemsAsync(session, root, linksForm.Items, _output.Text); CompleteOperation();
+            IReadOnlyCollection<DownloadItem> selectedLinks;
+            if (_advancedMode)
+            {
+                using var linksForm = new LinksForm(root, links);
+                if (linksForm.ShowDialog(this) != DialogResult.OK) return;
+                selectedLinks = linksForm.Items;
+            }
+            else
+            {
+                // Simple mode downloads every discovered internal page and resource
+                // immediately, without opening the selection window.
+                foreach (var link in links) { link.IsSelected = true; foreach (var resource in link.Resources) resource.IsSelected = true; }
+                selectedLinks = links;
+            }
+            await ProjectStorage.SaveAsync(Path.Combine(_output.Text, "links.json"), root, selectedLinks, CurrentProxySnapshot(), _cts.Token);
+            await DownloadItemsAsync(session, root, selectedLinks, _output.Text); CompleteOperation();
         }
         catch (OperationCanceledException) { CancelledOperation(); }
         catch (Exception ex) { FailedOperation(ex); }
         finally { FinishOperation(); }
+    }
+
+    private async void LoginClick(object? sender, EventArgs e)
+    {
+        if (!Uri.TryCreate(_url.Text.Trim(), UriKind.Absolute, out var root) || root.Scheme is not ("http" or "https"))
+        {
+            MessageBox.Show(this, "ابتدا آدرس سایت را وارد کنید.", "ورود به سایت", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_output.Text)) _output.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CopyWeb", root.Host);
+        try
+        {
+            using var form = new LoginForm(root);
+            if (form.ShowDialog(this) != DialogResult.OK) return;
+            _authCookies = form.Cookies;
+            Directory.CreateDirectory(_output.Text);
+            if (form.RememberSession) AuthCookieStore.Save(Path.Combine(_output.Text, "auth.cookies"), _authCookies);
+            _login.Text = "نشست فعال";
+            _login.BackColor = Color.FromArgb(177, 205, 190);
+            MessageBox.Show(this, $"ورود با موفقیت ثبت شد. {_authCookies.Count:N0} Cookie برای دانلود استفاده می‌شود.", "نشست کاربر", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "خطای ورود", MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
     private async void ResumeClick(object? sender, EventArgs e)
@@ -525,7 +616,7 @@ public partial class MainForm : Form
         try
         {
             var project = await ProjectStorage.LoadAsync(fileName); if (!Uri.TryCreate(project.RootUrl, UriKind.Absolute, out var root)) throw new InvalidDataException("آدرس ریشه پروژه معتبر نیست.");
-            _url.Text = root.AbsoluteUri; _output.Text = Path.GetDirectoryName(fileName) ?? _output.Text; RestoreProxySnapshot(project.Proxy); BeginLog(Path.Combine(_output.Text, "activity.log"), append: true); PrepareOperation(); _ = CaptureAutomaticScreenshotAsync(root, Path.Combine(_output.Text, "screenshots", "before.png")); using var session = CreateSession();
+            _url.Text = root.AbsoluteUri; _output.Text = Path.GetDirectoryName(fileName) ?? _output.Text; _authCookies = AuthCookieStore.Load(Path.Combine(_output.Text, "auth.cookies")); RestoreProxySnapshot(project.Proxy); BeginLog(Path.Combine(_output.Text, "activity.log"), append: true); PrepareOperation(); _ = CaptureAutomaticScreenshotAsync(root, Path.Combine(_output.Text, "screenshots", "before.png")); using var session = CreateSession(); session.ImportCookies(_authCookies);
             var crawlCheckpoint = project.Links.Any(x => x.State is LinkState.Pending or LinkState.Failed or LinkState.Downloading) && !project.Links.Any(x => x.State == LinkState.Downloaded);
             if (crawlCheckpoint)
             {
@@ -750,9 +841,16 @@ public partial class MainForm : Form
         var settings = AppSettingsStore.Load();
         if (settings.EnableCompletionNotification)
             _ = NotificationService.NotifyAsync("CopyWeb", "دانلود نسخه آفلاین سایت با موفقیت پایان یافت.", settings.CompletionWebhook, settings.CompletionEmail);
+        _ = CreateSnapshotAfterOperationAsync();
         if (Uri.TryCreate(_url.Text.Trim(), UriKind.Absolute, out var root))
             _ = CaptureAutomaticScreenshotAsync(root, Path.Combine(_output.Text, "screenshots", "after.png"), local: true);
         MessageBox.Show(this, "نسخه آفلاین سایت ذخیره شد.", "پایان عملیات", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private async Task CreateSnapshotAfterOperationAsync()
+    {
+        try { if (Directory.Exists(_output.Text)) await SnapshotVersionService.CreateAsync(_output.Text); }
+        catch (Exception ex) { AppendLog($"ایجاد Snapshot انجام نشد: {ex.Message}", ActivitySeverity.Warning); }
     }
 
     private async Task CaptureAutomaticScreenshotAsync(Uri uri, string path, bool local = false)
