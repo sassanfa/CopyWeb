@@ -9,12 +9,21 @@ namespace CopyWeb.Services;
 public sealed class SiteSession : IDisposable
 {
     private readonly CookieContainer _cookies = new();
-    private readonly HttpClient _client;
+    private readonly HttpClient[] _clients;
     private readonly ProxyOptions _options;
+    private int _nextClient;
 
-    public SiteSession(ProxyOptions? proxy = null)
+    public SiteSession(ProxyOptions? proxy = null, IEnumerable<ProxyOptions>? rotatingProxies = null)
     {
         _options = proxy ?? new ProxyOptions();
+        var options = (rotatingProxies ?? []).Where(x => x.Enabled && !string.IsNullOrWhiteSpace(x.Address)).ToList();
+        if (_options.Enabled && !string.IsNullOrWhiteSpace(_options.Address)) options.Insert(0, _options);
+        if (options.Count == 0) options.Add(_options);
+        _clients = options.Select(CreateClient).ToArray();
+    }
+
+    private HttpClient CreateClient(ProxyOptions options)
+    {
         var handler = new SocketsHttpHandler
         {
             CookieContainer = _cookies,
@@ -24,36 +33,37 @@ public sealed class SiteSession : IDisposable
             PooledConnectionLifetime = TimeSpan.FromMinutes(5)
         };
 
-        if (_options.Enabled)
+        if (options.Enabled)
         {
-            var proxyUri = NormalizeProxyAddress(_options);
-            if (_options.Kind == ProxyKind.Socks5)
+            var proxyUri = NormalizeProxyAddress(options);
+            if (options.Kind == ProxyKind.Socks5)
             {
-                handler.ConnectCallback = (context, token) => ConnectThroughSocks5Async(proxyUri.Host, proxyUri.Port, context.DnsEndPoint.Host, context.DnsEndPoint.Port, _options.Username, _options.Password, token);
+                handler.ConnectCallback = (context, token) => ConnectThroughSocks5Async(proxyUri.Host, proxyUri.Port, context.DnsEndPoint.Host, context.DnsEndPoint.Port, options.Username, options.Password, token);
             }
             else
             {
                 handler.Proxy = new WebProxy(proxyUri) { BypassProxyOnLocal = true };
                 handler.UseProxy = true;
-                if (!string.IsNullOrWhiteSpace(_options.Username))
-                    handler.Proxy.Credentials = new NetworkCredential(_options.Username, _options.Password);
+                if (!string.IsNullOrWhiteSpace(options.Username))
+                    handler.Proxy.Credentials = new NetworkCredential(options.Username, options.Password);
             }
         }
 
-        _client = new HttpClient(handler)
+        var client = new HttpClient(handler)
         {
-            Timeout = TimeSpan.FromSeconds(Math.Clamp(_options.TimeoutSeconds, 5, 600))
+            Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 600))
         };
-        _client.DefaultRequestHeaders.UserAgent.ParseAdd(string.IsNullOrWhiteSpace(_options.UserAgent)
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(string.IsNullOrWhiteSpace(options.UserAgent)
             ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 CopyWeb/1.0"
-            : _options.UserAgent);
-        _client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("fa-IR,fa;q=0.9,en;q=0.7");
-        foreach (var header in _options.Headers)
+            : options.UserAgent);
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("fa-IR,fa;q=0.9,en;q=0.7");
+        foreach (var header in options.Headers)
         {
-            try { _client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value); } catch { }
+            try { client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value); } catch { }
         }
-        if (!string.IsNullOrWhiteSpace(_options.CookieHeader))
-            _client.DefaultRequestHeaders.TryAddWithoutValidation("Cookie", _options.CookieHeader);
+        if (!string.IsNullOrWhiteSpace(options.CookieHeader))
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Cookie", options.CookieHeader);
+        return client;
     }
 
     public Task<HttpResponseMessage> GetAsync(Uri uri, HttpCompletionOption option, CancellationToken token) =>
@@ -88,7 +98,8 @@ public sealed class SiteSession : IDisposable
             token.ThrowIfCancellationRequested();
             try
             {
-                var response = await _client.GetAsync(uri, option, token).ConfigureAwait(false);
+                var client = _clients[Math.Abs(Interlocked.Increment(ref _nextClient)) % _clients.Length];
+                var response = await client.GetAsync(uri, option, token).ConfigureAwait(false);
                 if (attempt < retries && IsTransient(response.StatusCode))
                 {
                     response.Dispose();
@@ -173,5 +184,5 @@ public sealed class SiteSession : IDisposable
         return buffer;
     }
 
-    public void Dispose() => _client.Dispose();
+    public void Dispose() { foreach (var client in _clients) client.Dispose(); }
 }

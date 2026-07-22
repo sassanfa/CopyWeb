@@ -17,6 +17,9 @@ public sealed class SettingsForm : Form
     private readonly CheckBox _compactMode = new();
     private readonly CheckBox _apiEnabled = new();
     private readonly NumericUpDown _apiPort = new();
+    private readonly CheckBox _notifications = new();
+    private readonly TextBox _webhook = new();
+    private readonly TextBox _email = new();
     private Color _primary;
     private Color _background;
     private Color _surface;
@@ -31,8 +34,8 @@ public sealed class SettingsForm : Form
 
         Text = "تنظیمات برنامه";
         StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(760, 780);
-        MinimumSize = new Size(680, 700);
+        Size = new Size(760, 900);
+        MinimumSize = new Size(680, 820);
         Font = UiTheme.NormalFont;
         RightToLeft = RightToLeft.Yes;
         BackColor = UiTheme.Background;
@@ -95,7 +98,13 @@ public sealed class SettingsForm : Form
         _apiPort.Minimum = 1024; _apiPort.Maximum = 65535; _apiPort.Value = Math.Clamp(current.LocalApiPort, 1024, 65535); _apiPort.Width = 90; _apiPort.Location = new Point(300, 606);
         var apiHint = UiTheme.Label("GET /api/status   GET /api/projects   POST /api/stop", 8, color: UiTheme.Muted); apiHint.Location = new Point(22, 650); apiHint.AutoSize = true; apiHint.RightToLeft = RightToLeft.No;
 
-        card.Controls.AddRange([presetLabel, _preset, primaryLabel, _primaryColor, backgroundLabel, _backgroundColor, _saveLogs, hint, languageLabel, _language, _renderJavaScript, agentLabel, _userAgent, headersLabel, _headers, cookiesLabel, _cookies, _compactMode, _apiEnabled, _apiPort, apiHint]);
+        _notifications.Text = "اعلان پایان دانلود با صدا و Windows notification"; _notifications.AutoSize = true; _notifications.Checked = current.EnableCompletionNotification; _notifications.Location = new Point(22, 690);
+        var webhookLabel = UiTheme.Label("Webhook پایان دانلود (اختیاری)", 9, color: UiTheme.Muted); webhookLabel.Location = new Point(22, 720);
+        ConfigureEndpoint(_webhook, current.CompletionWebhook, 22, 744, 640);
+        var emailLabel = UiTheme.Label("ایمیل اعلان (اختیاری؛ پنجره Mail آماده می‌شود)", 9, color: UiTheme.Muted); emailLabel.Location = new Point(22, 780);
+        ConfigureEndpoint(_email, current.CompletionEmail, 22, 804, 640);
+
+        card.Controls.AddRange([presetLabel, _preset, primaryLabel, _primaryColor, backgroundLabel, _backgroundColor, _saveLogs, hint, languageLabel, _language, _renderJavaScript, agentLabel, _userAgent, headersLabel, _headers, cookiesLabel, _cookies, _compactMode, _apiEnabled, _apiPort, apiHint, _notifications, webhookLabel, _webhook, emailLabel, _email]);
 
         var buttons = new FlowLayoutPanel
         {
@@ -191,6 +200,9 @@ public sealed class SettingsForm : Form
             SaveDetailedLogs = _saveLogs.Checked,
             Language = _language.SelectedIndex == 1 ? "en" : "fa",
             RenderJavaScript = _renderJavaScript.Checked,
+            EnableCompletionNotification = _notifications.Checked,
+            CompletionWebhook = _webhook.Text.Trim(),
+            CompletionEmail = _email.Text.Trim(),
             UserAgent = string.IsNullOrWhiteSpace(_userAgent.Text) ? new AppSettings().UserAgent : _userAgent.Text.Trim(),
             CustomHeaders = ParseHeaders(_headers.Text),
             CustomCookies = _cookies.Text.Trim(),
@@ -218,6 +230,9 @@ public sealed class SettingsForm : Form
         result.ReadSitemaps = previous.ReadSitemaps;
         result.FollowCanonicalLinks = previous.FollowCanonicalLinks;
         result.ProxyProfiles = previous.ProxyProfiles;
+        result.EnableCompletionNotification = _notifications.Checked;
+        result.CompletionWebhook = _webhook.Text.Trim();
+        result.CompletionEmail = _email.Text.Trim();
         AppSettingsStore.Save(result);
         UiTheme.Apply(result);
         Result = result;
@@ -226,6 +241,11 @@ public sealed class SettingsForm : Form
     }
 
     private static bool IsDark(Color color) => (color.R * 299 + color.G * 587 + color.B * 114) < 145000;
+
+    private static void ConfigureEndpoint(TextBox box, string value, int x, int y, int width)
+    {
+        box.Text = value; box.Location = new Point(x, y); box.Width = width; box.Height = 28; box.BorderStyle = BorderStyle.FixedSingle; box.RightToLeft = RightToLeft.No;
+    }
 
     private static Dictionary<string, string> ParseHeaders(string text)
     {

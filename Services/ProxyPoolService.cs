@@ -23,4 +23,12 @@ public static class ProxyPoolService
         }
         return results;
     }
+
+    public static async Task<ProxyProfile?> SelectFastestAsync(IEnumerable<ProxyProfile> profiles, CancellationToken token = default)
+    {
+        var source = profiles.Where(x => x.Enabled && !string.IsNullOrWhiteSpace(x.Address)).ToList();
+        var results = await CheckAsync(source, token).ConfigureAwait(false);
+        var best = results.Where(x => x.IsHealthy).OrderBy(x => x.Elapsed).FirstOrDefault();
+        return best is null ? null : source.FirstOrDefault(x => x.Name.Equals(best.Name, StringComparison.OrdinalIgnoreCase));
+    }
 }

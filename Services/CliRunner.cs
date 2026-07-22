@@ -68,6 +68,8 @@ public static class CliRunner
         try
         {
             Directory.CreateDirectory(temp); File.WriteAllText(Path.Combine(temp, "links.json"), "{}"); File.WriteAllText(Path.Combine(temp, "sample.txt"), "ok");
+            File.WriteAllText(Path.Combine(temp, "index.html"), "<a href=\"missing.html\">broken</a>");
+            if (OfflineLinkChecker.Scan(temp).Count != 1) return 1;
             var archive = temp + ".copyweb.zip"; ProjectArchiveService.CreateBackupAsync(Path.Combine(temp, "links.json"), archive).GetAwaiter().GetResult();
             var restored = temp + "-restored"; ProjectArchiveService.RestoreBackup(archive, restored);
             if (!File.Exists(Path.Combine(restored, "sample.txt"))) return 1;
@@ -95,7 +97,7 @@ public static class CliRunner
 
     private static void PrintHelp()
     {
-        Console.WriteLine("CopyWeb CLI 1.2.0 - headless website archiver");
+        Console.WriteLine("CopyWeb CLI 1.3.0 - headless website archiver");
         Console.WriteLine();
         Console.WriteLine("Basic:");
         Console.WriteLine("  CopyWeb.exe --cli --url https://example.com --output C:\\Sites\\example");

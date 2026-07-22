@@ -98,10 +98,25 @@ public sealed class ProjectsForm : Form
         var schedule = UiTheme.Button("زمان‌بندی", Color.FromArgb(118, 137, 157));
         schedule.Width = 105;
         schedule.Click += (_, _) => ScheduleProject();
+        var preview = UiTheme.Button("پیش‌نمایش آفلاین", Color.FromArgb(118, 137, 157));
+        preview.Width = 145;
+        preview.Click += (_, _) => PreviewProject();
+        var dashboard = UiTheme.Button("داشبورد", Color.FromArgb(118, 137, 157));
+        dashboard.Width = 105;
+        dashboard.Click += (_, _) => OpenDashboard();
+        var watch = UiTheme.Button("حالت Watch", Color.FromArgb(118, 137, 157));
+        watch.Width = 110;
+        watch.Click += (_, _) => OpenWatch();
+        var publish = UiTheme.Button("انتشار", Color.FromArgb(118, 137, 157));
+        publish.Width = 95;
+        publish.Click += (_, _) => OpenPublish();
+        var screenshots = UiTheme.Button("اسکرین‌شات قبل/بعد", Color.FromArgb(118, 137, 157));
+        screenshots.Width = 155;
+        screenshots.Click += async (_, _) => await CaptureScreenshotsAsync();
         var close = UiTheme.Button("بستن", UiTheme.Primary);
         close.Width = 95;
         close.Click += (_, _) => Close();
-        buttons.Controls.AddRange([close, restore, backup, copy, rename, schedule, resume, folder, view, refresh]);
+        buttons.Controls.AddRange([close, screenshots, publish, watch, dashboard, preview, restore, backup, copy, rename, schedule, resume, folder, view, refresh]);
 
         root.Controls.Add(card);
         root.Controls.Add(buttons);
@@ -288,6 +303,60 @@ public sealed class ProjectsForm : Form
         if (entry is null || !Uri.TryCreate(entry.Site, UriKind.Absolute, out var root)) return;
         using var form = new ScheduleForm(root, entry.StoragePath);
         form.ShowDialog(this);
+    }
+
+    private void PreviewProject()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        using var form = new OfflinePreviewForm(entry.StoragePath);
+        form.ShowDialog(this);
+    }
+
+    private void OpenDashboard()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        using var form = new DashboardForm(entry.FileName);
+        form.ShowDialog(this);
+    }
+
+    private void OpenWatch()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        using var form = new WatchForm(entry.FileName);
+        form.ShowDialog(this);
+    }
+
+    private void OpenPublish()
+    {
+        var entry = SelectedEntry;
+        if (entry is null) return;
+        using var form = new PublishForm(entry.StoragePath);
+        form.ShowDialog(this);
+    }
+
+    private async Task CaptureScreenshotsAsync()
+    {
+        var entry = SelectedEntry;
+        if (entry is null || !Uri.TryCreate(entry.Site, UriKind.Absolute, out var remote)) return;
+        var folder = Path.Combine(entry.StoragePath, "screenshots");
+        Directory.CreateDirectory(folder);
+        try
+        {
+            _empty.Text = "در حال گرفتن اسکرین‌شات قبل و بعد..."; _empty.Visible = true;
+            using (var browser = new BrowserSnapshotForm(remote)) await browser.CaptureScreenshotAsync(Path.Combine(folder, "before.png"), CancellationToken.None);
+            using (var server = new OfflinePreviewServer(entry.StoragePath))
+            {
+                server.Start();
+                using var local = new BrowserSnapshotForm(new Uri(server.BaseUri, "index.html"));
+                await local.CaptureScreenshotAsync(Path.Combine(folder, "after.png"), CancellationToken.None);
+            }
+            MessageBox.Show(this, $"اسکرین‌شات‌ها در پوشه زیر ذخیره شدند:\n{folder}", "اسکرین‌شات", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex) { MessageBox.Show(this, $"گرفتن اسکرین‌شات انجام نشد:\n{ex.Message}", "اسکرین‌شات", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        finally { _empty.Visible = _entries.Count == 0; }
     }
 
     private static void CopyDirectory(string source, string destination)

@@ -1,4 +1,5 @@
 using Microsoft.Web.WebView2.WinForms;
+using Microsoft.Web.WebView2.Core;
 using System.Text.Json;
 
 namespace CopyWeb;
@@ -14,6 +15,7 @@ public sealed class BrowserSnapshotForm : Form
     private readonly Label _status = UiTheme.Label("در حال اجرای JavaScript صفحه...", 10, color: UiTheme.Muted);
     private readonly TaskCompletionSource<string?> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _completed;
+    private string? _screenshotPath;
 
     public BrowserSnapshotForm(Uri uri)
     {
@@ -46,6 +48,13 @@ public sealed class BrowserSnapshotForm : Form
         return _completion.Task;
     }
 
+    public Task<string?> CaptureScreenshotAsync(string outputPath, CancellationToken token)
+    {
+        _screenshotPath = Path.GetFullPath(outputPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(_screenshotPath)!);
+        return CaptureAsync(token);
+    }
+
     private async void InitializeAsync(object? sender, EventArgs e)
     {
         try
@@ -67,6 +76,13 @@ public sealed class BrowserSnapshotForm : Form
         try
         {
             await Task.Delay(400);
+            if (!string.IsNullOrWhiteSpace(_screenshotPath))
+            {
+                await using var image = File.Create(_screenshotPath);
+                await _browser.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, image);
+                Complete(_screenshotPath);
+                return;
+            }
             var json = await _browser.CoreWebView2.ExecuteScriptAsync("document.documentElement.outerHTML");
             var html = JsonSerializer.Deserialize<string>(json);
             Complete(html);

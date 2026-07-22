@@ -31,6 +31,9 @@ public sealed class AppSettings
     public bool ReadSitemaps { get; set; } = true;
     public bool FollowCanonicalLinks { get; set; } = true;
     public bool RenderJavaScript { get; set; }
+    public bool EnableCompletionNotification { get; set; } = true;
+    public string CompletionWebhook { get; set; } = string.Empty;
+    public string CompletionEmail { get; set; } = string.Empty;
     public string UserAgent { get; set; } = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 CopyWeb/1.0";
     public Dictionary<string, string> CustomHeaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public string CustomCookies { get; set; } = string.Empty;

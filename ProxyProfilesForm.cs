@@ -47,7 +47,8 @@ public sealed class ProxyProfilesForm : Form
         var remove = UiTheme.Button("حذف پروفایل", UiTheme.Danger); remove.Location = new Point(208, 180); remove.Width = 130; remove.Click += (_, _) => RemoveSelected();
         var use = UiTheme.Button("استفاده", UiTheme.Accent); use.Location = new Point(348, 180); use.Width = 100; use.Click += (_, _) => UseSelected();
         var health = UiTheme.Button("بررسی سلامت همه", Color.FromArgb(232, 237, 245)); health.Tag = "secondary-button"; health.ForeColor = UiTheme.Text; health.Location = new Point(18, 230); health.Width = 180; health.Click += async (_, _) => await CheckHealthAsync();
-        card.Controls.AddRange([_name, _kind, _address, _port, _user, _password, add, remove, use, health]);
+        var fastest = UiTheme.Button("انتخاب سریع‌ترین", Color.FromArgb(232, 237, 245)); fastest.Tag = "secondary-button"; fastest.ForeColor = UiTheme.Text; fastest.Location = new Point(208, 230); fastest.Width = 150; fastest.Click += async (_, _) => await SelectFastestAsync();
+        card.Controls.AddRange([_name, _kind, _address, _port, _user, _password, add, remove, use, health, fastest]);
         var close = UiTheme.Button("بستن", Color.White); close.Tag = "secondary-button"; close.Dock = DockStyle.Bottom; close.Height = 40; close.Click += (_, _) => Close();
         root.Controls.Add(card); root.Controls.Add(_list); root.Controls.Add(close); root.Controls.Add(title); Controls.Add(root);
     }
@@ -104,6 +105,16 @@ public sealed class ProxyProfilesForm : Form
         var results = await ProxyPoolService.CheckAsync(_profiles);
         var text = string.Join(Environment.NewLine, results.Select(x => $"{x.Name}: {(x.IsHealthy ? "سالم" : "ناموفق")} | {x.Message} | {x.Elapsed.TotalMilliseconds:0} ms"));
         MessageBox.Show(this, text, "سلامت پروکسی‌ها", MessageBoxButtons.OK, results.All(x => x.IsHealthy) ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+    }
+
+    private async Task SelectFastestAsync()
+    {
+        if (_profiles.Count == 0) return;
+        var best = await ProxyPoolService.SelectFastestAsync(_profiles);
+        if (best is null) { MessageBox.Show(this, "هیچ پروکسی سالمی پیدا نشد.", "چرخش پروکسی", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        _list.SelectedIndex = _profiles.FindIndex(x => x.Name.Equals(best.Name, StringComparison.OrdinalIgnoreCase));
+        SelectedProfile = Clone(best);
+        MessageBox.Show(this, $"پروفایل سریع‌تر انتخاب شد: {best.Name}\nدر زمان دانلود، پروفایل‌های سالم به‌صورت چرخشی استفاده می‌شوند.", "چرخش پروکسی", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private static ProxyProfile Clone(ProxyProfile source) => new() { Name = source.Name, Kind = source.Kind, Enabled = source.Enabled, Address = source.Address, Port = source.Port, EncryptedUsername = source.EncryptedUsername, EncryptedPassword = source.EncryptedPassword };

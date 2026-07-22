@@ -220,7 +220,7 @@ public partial class MainForm : Form
         var reports = NavButton("📊   گزارش‌ها", false); reports.Click += (_, _) => ShowReports();
         var about = NavButton("ⓘ   درباره برنامه", false); about.Click += (_, _) => ShowAbout();
         nav.Controls.AddRange([home, projects, settings, reports, about]);
-        var version = UiTheme.Label("نسخه 1.2.0", 9, color: Color.FromArgb(215, 232, 255)); version.Dock = DockStyle.Bottom; version.TextAlign = ContentAlignment.MiddleCenter; version.Height = 30;
+        var version = UiTheme.Label("نسخه 1.3.0", 9, color: Color.FromArgb(215, 232, 255)); version.Dock = DockStyle.Bottom; version.TextAlign = ContentAlignment.MiddleCenter; version.Height = 30;
         sidebar.Controls.Add(version); sidebar.Controls.Add(nav); sidebar.Controls.Add(brand);
         return sidebar;
     }
@@ -499,6 +499,7 @@ public partial class MainForm : Form
         { MessageBox.Show(this, "لطفاً یک آدرس معتبر HTTP یا HTTPS وارد کنید.", "آدرس نامعتبر", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         if (string.IsNullOrWhiteSpace(_output.Text)) _output.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CopyWeb", root.Host);
         Directory.CreateDirectory(_output.Text); BeginLog(Path.Combine(_output.Text, "activity.log"), append: false); PrepareOperation();
+        _ = CaptureAutomaticScreenshotAsync(root, Path.Combine(_output.Text, "screenshots", "before.png"));
         try
         {
             using var session = CreateSession(); var crawler = new SiteCrawler(session);
@@ -524,7 +525,7 @@ public partial class MainForm : Form
         try
         {
             var project = await ProjectStorage.LoadAsync(fileName); if (!Uri.TryCreate(project.RootUrl, UriKind.Absolute, out var root)) throw new InvalidDataException("آدرس ریشه پروژه معتبر نیست.");
-            _url.Text = root.AbsoluteUri; _output.Text = Path.GetDirectoryName(fileName) ?? _output.Text; RestoreProxySnapshot(project.Proxy); BeginLog(Path.Combine(_output.Text, "activity.log"), append: true); PrepareOperation(); using var session = CreateSession();
+            _url.Text = root.AbsoluteUri; _output.Text = Path.GetDirectoryName(fileName) ?? _output.Text; RestoreProxySnapshot(project.Proxy); BeginLog(Path.Combine(_output.Text, "activity.log"), append: true); PrepareOperation(); _ = CaptureAutomaticScreenshotAsync(root, Path.Combine(_output.Text, "screenshots", "before.png")); using var session = CreateSession();
             var crawlCheckpoint = project.Links.Any(x => x.State is LinkState.Pending or LinkState.Failed or LinkState.Downloading) && !project.Links.Any(x => x.State == LinkState.Downloaded);
             if (crawlCheckpoint)
             {
@@ -629,6 +630,25 @@ public partial class MainForm : Form
         settings.ReadSitemaps = _sitemaps.Checked;
         settings.FollowCanonicalLinks = _canonical.Checked;
         AppSettingsStore.Save(settings);
+        var rotatingProxies = (_proxyEnabled.Checked ? settings.ProxyProfiles : [])
+            .Where(profile => profile.Enabled && !string.IsNullOrWhiteSpace(profile.Address))
+            .Select(profile => new ProxyOptions
+            {
+                Enabled = true,
+                Kind = profile.Kind,
+                Address = profile.Address,
+                Port = profile.Port,
+                Username = SecureStorage.Unprotect(profile.EncryptedUsername),
+                Password = SecureStorage.Unprotect(profile.EncryptedPassword),
+                TimeoutSeconds = (int)_timeoutSeconds.Value,
+                RetryCount = (int)_retryCount.Value,
+                RetryDelayMilliseconds = 750,
+                MaxDownloadSpeedKbps = (int)_speedLimit.Value,
+                MaxConnectionsPerDomain = (int)_domainConnections.Value,
+                UserAgent = settings.UserAgent,
+                Headers = settings.CustomHeaders,
+                CookieHeader = settings.CustomCookies
+            }).ToList();
         return new SiteSession(new ProxyOptions
         {
             Enabled = _proxyEnabled.Checked,
@@ -645,7 +665,7 @@ public partial class MainForm : Form
             UserAgent = settings.UserAgent,
             Headers = settings.CustomHeaders,
             CookieHeader = settings.CustomCookies
-        });
+        }, rotatingProxies);
     }
 
     private void SetProxyTestColor(Color color)
@@ -727,7 +747,31 @@ public partial class MainForm : Form
     {
         _status.Text = "دانلود با موفقیت پایان یافت";
         AppendLog("عملیات با موفقیت پایان یافت.", ActivitySeverity.Success);
+        var settings = AppSettingsStore.Load();
+        if (settings.EnableCompletionNotification)
+            _ = NotificationService.NotifyAsync("CopyWeb", "دانلود نسخه آفلاین سایت با موفقیت پایان یافت.", settings.CompletionWebhook, settings.CompletionEmail);
+        if (Uri.TryCreate(_url.Text.Trim(), UriKind.Absolute, out var root))
+            _ = CaptureAutomaticScreenshotAsync(root, Path.Combine(_output.Text, "screenshots", "after.png"), local: true);
         MessageBox.Show(this, "نسخه آفلاین سایت ذخیره شد.", "پایان عملیات", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private async Task CaptureAutomaticScreenshotAsync(Uri uri, string path, bool local = false)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            if (!local)
+            {
+                using var browser = new BrowserSnapshotForm(uri);
+                await browser.CaptureScreenshotAsync(path, CancellationToken.None);
+                return;
+            }
+            using var server = new OfflinePreviewServer(_output.Text);
+            server.Start();
+            using var localBrowser = new BrowserSnapshotForm(new Uri(server.BaseUri, "index.html"));
+            await localBrowser.CaptureScreenshotAsync(path, CancellationToken.None);
+        }
+        catch (Exception ex) { AppendLog($"اسکرین‌شات خودکار انجام نشد: {ex.Message}", ActivitySeverity.Warning); }
     }
 
     private void CancelledOperation()

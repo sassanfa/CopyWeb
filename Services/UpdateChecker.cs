@@ -8,7 +8,7 @@ public sealed record UpdateCheckResult(bool IsNewer, string CurrentVersion, stri
 
 public static class UpdateChecker
 {
-    public const string CurrentVersion = "1.2.0";
+    public const string CurrentVersion = "1.3.0";
     public const string RepositoryUrl = "https://github.com/SassanFa/CopyWeb";
     private const string LatestReleaseApi = "https://api.github.com/repos/SassanFa/CopyWeb/releases/latest";
 

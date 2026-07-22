@@ -408,6 +408,12 @@ public sealed partial class SiteDownloader(SiteSession session)
                 css = await RewriteCssAsync(css, uri, file, token).ConfigureAwait(false);
                 await File.WriteAllTextAsync(file, css, new UTF8Encoding(false), token).ConfigureAwait(false);
             }
+            else if (folder == "Img")
+            {
+                // Keep one content-addressed image in the shared repository and link it into
+                // each project. HTML still points at the project-local relative path.
+                await SharedAssetStore.MaterializeAsync(contentHash, extension, bytes, file, token).ConfigureAwait(false);
+            }
             else await File.WriteAllBytesAsync(file, bytes, token).ConfigureAwait(false);
             var canonical = folder == "Img" ? _contentAssets.GetOrAdd(contentHash, file) : file;
             if (!canonical.Equals(file, StringComparison.OrdinalIgnoreCase))
