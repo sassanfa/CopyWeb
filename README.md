@@ -2,11 +2,11 @@
 
 CopyWeb یک برنامه‌ی Windows Forms برای تهیه‌ی نسخه‌ی آفلاین از سایت‌ها و صفحات داخلی مرتبط آن‌هاست.
 
-![Version](https://img.shields.io/badge/version-1.2.0-2563EB)
+![Version](https://img.shields.io/badge/version-1.3.0-2563EB)
 ![Platform](https://img.shields.io/badge/platform-Windows-0F766E)
 
 **Created by:** SassanFa — [Sassanfa@gmail.com](mailto:Sassanfa@gmail.com)  
-**Version:** 1.2.0  
+**Version:** 1.3.0  
 **Release date:** 2026-07-19
 
 ## قابلیت‌ها
@@ -116,16 +116,16 @@ dotnet publish CopyWeb.csproj `
 
 ## ساخت فایل نصبی
 
-اسکریپت Inno Setup در `installer\CopyWeb.iss` قرار دارد. ابتدا publish را طبق دستور بالا بسازید، سپس فایل را با Inno Setup 6 باز و Compile کنید. راهنمای کامل در `installer\README.md` است و خروجی با نام `CopyWeb-Setup-1.2.0.exe` ساخته می‌شود.
+اسکریپت Inno Setup در `installer\CopyWeb.iss` قرار دارد. ابتدا publish را طبق دستور بالا بسازید، سپس فایل را با Inno Setup 6 باز و Compile کنید. راهنمای کامل در `installer\README.md` است و خروجی با نام `CopyWeb-Setup-1.3.0.exe` ساخته می‌شود.
 
-فایل‌های Release نسخه 1.2.0 در پوشه‌ی `releases/1.2.0` قرار دارند:
+فایل‌های Release نسخه 1.3.0 در پوشه‌ی `releases/1.3.0` قرار دارند:
 
-- `CopyWeb-Setup-1.2.0.exe` — نصب‌کننده‌ی Windows
+- `CopyWeb-Setup-1.3.0.exe` — نصب‌کننده‌ی Windows
 - `CopyWeb.exe` — اجرای Portable تک‌فایلی
 - `CopyWeb-Portable.exe` — نام جایگزین نسخه‌ی Portable
-- `CopyWeb-Portable-1.2.0.zip` — بسته‌ی Portable
+- `CopyWeb-Portable-1.3.0.zip` — بسته‌ی Portable
 - `CLI.md` — راهنمای کامل خط فرمان
-- `RELEASE_NOTES-1.2.0.md` — متن Release
+- `RELEASE_NOTES-1.3.0.md` — متن Release
 
 ## CLI و API محلی
 
@@ -151,6 +151,10 @@ CopyWeb/
 ├── MainForm.cs         # پنجره‌ی اصلی و داشبورد
 ├── LinksForm.cs        # صفحات و منابع با نمایش درختی
 ├── ProjectsForm.cs     # پروژه‌های ذخیره‌شده
+├── OfflinePreviewForm.cs # پیش‌نمایش localhost و لینک‌های خراب
+├── WatchForm.cs         # بررسی دوره‌ای و دانلود افزایشی
+├── DashboardForm.cs     # داشبورد وضعیت و حجم فایل‌ها
+├── PublishForm.cs       # ZIP، IIS، FTP/SFTP
 ├── ReportsForm.cs      # گزارش فعالیت
 ├── SettingsForm.cs     # تم، زبان و تنظیمات برنامه
 └── AboutForm.cs        # اطلاعات برنامه
@@ -165,7 +169,7 @@ CopyWeb/
 - منابعی که در پنجره‌ی لینک‌ها لغو انتخاب شوند، در صفحه‌ی آفلاین محلی‌سازی نمی‌شوند.
 - پروکسی برنامه در تمام مراحل بررسی و دانلود مشترک است.
 
-## Release 1.2.0 highlights
+## Release 1.3.0 highlights
 
 - Bounded parallel downloads (1-16 workers) with a visible active/queued count.
 - Per-page progress, aggregate progress, transfer speed, expected bytes and free disk space.
@@ -192,6 +196,14 @@ CopyWeb/
 - Download Monitor includes search, state filtering, a progress chart, URL double-click navigation and per-link retry/stop.
 - Optional localhost API exposes `/api/status`, `/api/projects` and `/api/stop` without opening a network port externally.
 - Drag & Drop accepts a URL or a text file whose first line is a URL.
+- Offline preview server runs archived pages on `127.0.0.1` and checks broken local links before delivery.
+- Watch mode stores page hashes and launches an incremental `--resume` download only when content changes.
+- Images use a content-addressed shared repository under `%LOCALAPPDATA%\CopyWeb\SharedAssets`; projects use links/hard-links when Windows permits.
+- Before/after rendered screenshots can be captured into the project `screenshots` folder.
+- Completion notification includes Windows balloon notification and system sound; webhook and mailto hooks are available in the notification service.
+- Project dashboard summarizes page state, file count and size by type.
+- Publish tools create ZIP archives, prepare an IIS-ready folder and upload a project to FTP/SFTP (SFTP uses Windows OpenSSH and an SSH key).
+- Saved proxy profiles are health-checked and rotated between requests when more than one enabled profile is available.
 
 ## English summary
 
@@ -199,7 +211,7 @@ CopyWeb is a Windows Forms website archiver. It crawls internal pages, filters e
 
 **CopyWeb Created by SassanFa**  
 **Email:** [Sassanfa@gmail.com](mailto:Sassanfa@gmail.com)  
-**Version:** 1.2.0
+**Version:** 1.3.0
 
 ## مجوز و مسئولیت استفاده
 
