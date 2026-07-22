@@ -11,8 +11,10 @@
 - ورود به سایت با WebView2 و استفاده از Cookie/Session رمزنگاری‌شده برای صفحات خصوصی.
 - بارگذاری پروژه برای ویرایش آدرس بدون شروع خودکار Resume؛ آدرس اصلاح‌شده در دانلود بعدی استفاده می‌شود.
 - حالت ساده برای کاربر عادی: ورود فقط URL و شروع دانلود خودکار؛ حالت پیشرفته همه تنظیمات را نمایش می‌دهد.
+- دکمه‌ی «پیشرفته» برای تشخیص سریع با رنگ قرمز و متن سفید نمایش داده می‌شود و با یک کلیک بین حالت ساده و پیشرفته جابه‌جا می‌کند.
 - کشف و بازنویسی منابع Lazy و responsive شامل `data-*`، `srcset`، `picture/source`، تصویرهای inline و WebP/AVIF.
 - هدر Accept مناسب تصویر برای دریافت مستقیم WebP از CDNها و جلوگیری از جاافتادن تصاویر.
+- CLI کامل برای اجرای بدون رابط گرافیکی، Resume، Proxy و self-test.
 
 ## اصلاحات مهم
 
@@ -28,4 +30,15 @@
 - `CopyWeb-Portable.exe` — نام جایگزین نسخه‌ی Portable
 - `CLI.md` — راهنمای خط فرمان
 
+## اجرای سریع
+
+- برای استفاده‌ی عادی: `CopyWeb.exe`
+- برای اجرای Portable: `CopyWeb-Portable.exe` یا بسته‌ی `CopyWeb-Portable-1.3.1.zip`
+- برای نصب دائمی: `CopyWeb-Setup-1.3.1.exe`
+- برای بررسی نصب و وابستگی‌ها: `CopyWeb.exe --cli --self-test`
+
 برای اجرای SPA، CAPTCHA، ورود کاربر و screenshot به Microsoft WebView2 Runtime نیاز است.
+
+## عنوان پیشنهادی Release در GitHub
+
+`CopyWeb v1.3.1 — Red Advanced Mode Button + Complete Portable and Setup Packages`
