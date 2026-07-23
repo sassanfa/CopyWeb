@@ -1,257 +1,134 @@
-# CopyWeb
+# CopyWeb 1.3.5
 
-CopyWeb یک برنامه‌ی Windows Forms برای تهیه‌ی نسخه‌ی آفلاین از سایت‌ها و صفحات داخلی مرتبط آن‌هاست.
+CopyWeb یک ابزار Windows برای دریافت نسخهٔ آفلاین وب‌سایت‌ها، ذخیرهٔ صفحه‌ها و منابع آن‌ها و مرور آرشیو روی localhost است.
 
-![Version](https://img.shields.io/badge/version-1.3.2-2563EB)
-![Platform](https://img.shields.io/badge/platform-Windows-0F766E)
+## قابلیت‌های اصلی
 
-**Created by:** SassanFa — [Sassanfa@gmail.com](mailto:Sassanfa@gmail.com)  
-**Version:** 1.3.2  
-**Release date:** 2026-07-22
+- دانلود HTML، تصاویر (از جمله WebP و AVIF)، CSS، JavaScript، فونت، ویدئو و فایل‌های مرتبط
+- کشف لینک از HTML، CSS، `srcset`، Sitemap و Canonical
+- جلوگیری از دانلود دوبارهٔ منابع یکسان با URL نرمال‌شده و Hash
+- توقف، Resume، checkpoint اتمیک و Retry موارد ناموفق
+- نمایش فایل فعلی، درصد همان فایل، پیشرفت کل پروژه، سرعت و زمان باقی‌مانده
+- ذخیرهٔ زنده و «کپی وبی» برای ثبت فقط صفحه‌هایی که کاربر در مرورگر داخلی باز می‌کند
+- ثبت لینک‌های `target=_blank` در همان مرورگر داخلی
+- بازنویسی لینک‌های HTML و CSS برای مرور آفلاین
+- پروکسی HTTP، HTTPS و SOCKS5، تست اتصال و نگهداری امن رمز با Windows DPAPI
+- گزارش‌های TXT، CSV و JSON، فیلتر وضعیت و Crash Log
+- اعتبارسنجی آرشیو، جست‌وجوی متن، Snapshot، Visual Diff، نقشهٔ سلسله‌مراتبی سایت و پیش‌نمایش آفلاین
+- رابط فارسی/انگلیسی و تم یکپارچه در داشبورد و تمام پنجره‌های داخلی
+- CLI برای دانلود بدون رابط گرافیکی و اجرای self-test
 
-## قابلیت‌ها
+## داستان توسعه و تاریخچهٔ نسخه‌ها
 
-- دریافت سایت از یک URL و شناسایی صفحات داخلی همان دامنه
-- محدودکردن عمق بررسی، تعداد صفحات و زیردامنه‌ها
-- پشتیبانی از `robots.txt`، Sitemap و لینک‌های Canonical
-- حذف لینک‌های خارجی و فیلترکردن URLهای غیرصفحه مانند تصویر، CSS، JS و ویدئو از فهرست صفحات
-- نمایش درختی صفحات و منابع با دکمه‌ی `+ / −`
-- نمایش تصاویر، CSS، JavaScript، فونت، رسانه و فایل‌های هر صفحه زیر همان صفحه
-- انتخاب یا لغو انتخاب مستقل هر منبع قبل از دانلود
-- ذخیره‌ی صفحات در `pages` و منابع در پوشه‌های `Img`، `CSS`، `JS`، `Fonts` و `Files`
-- بازنویسی لینک‌های داخلی برای مرور آفلاین
-- پشتیبانی گسترده از تصاویر Lazy، `srcset`، `picture/source`، `data-*` و WebP/AVIF
-- نمایش URL فعلی، مرحله‌ی عملیات، درصد فایل، درصد کل پروژه و تعداد موفق/ناموفق
-- نمایش سرعت دانلود، حجم دریافت‌شده و زمان تقریبی پایان
-- توقف، ادامه و Resume از checkpointهای اتمیک
-- فیلتر و جست‌وجو بین صفحات و منابع و عملیات گروهی
-- پروکسی HTTP، HTTPS و SOCKS5 با تست اتصال، Timeout، Retry و تأخیر درخواست
-- رمزنگاری نام کاربری و رمز پروکسی با Windows DPAPI
-- پشتیبانی از User-Agent، Header و Cookie سفارشی
-- مدیریت CAPTCHA با نمایش مرورگر و گزینه‌ی «تأیید همه صفحات»
-- ورود به سایت با WebView2 و استفاده از Cookie/Session کاربر برای صفحات خصوصی
-- اعتبارسنجی آرشیو، Snapshot Versioning، Visual Diff و جست‌وجوی متن صفحات ذخیره‌شده
-- بارگذاری پروژه برای ویرایش URL بدون Resume خودکار و استفاده از آدرس اصلاح‌شده
-- محدودیت اتصال هم‌زمان برای هر دامنه در کنار سقف کلی دانلود
-- پروفایل‌های ذخیره‌شده‌ی پروکسی با رمزنگاری DPAPI و انتخاب سریع
-- گزارش فعالیت با فیلتر موفقیت، اطلاعات، هشدار و خطا
-- خروجی گزارش در TXT، CSV و JSON و ثبت Crash Log
-- حالت تاریک، تم‌های رنگی و تغییر زبان فارسی/انگلیسی بدون Restart
-- ذخیره و مدیریت پروژه‌ها از بخش Projects
-- کپی و تغییر نام پروژه، پشتیبان‌گیری ZIP و بازیابی امن
-- زمان‌بندی اجرای یک‌باره با Windows Task Scheduler
-- Drag & Drop برای واردکردن URL از متن یا فایل
-- فیلتر زنده، جست‌وجو، نمودار پیشرفت و بازکردن URL خطادار از مانیتور دانلود
-- API محلی اختیاری روی `127.0.0.1` برای وضعیت، پروژه‌ها و توقف عملیات
-- حالت ساده برای واردکردن فقط URL و شروع دانلود خودکار، همراه با دکمه‌ی حالت پیشرفته برای نمایش همه تنظیمات
-- دکمه‌ی «پیشرفته» با رنگ قرمز و متن سفید، برای تشخیص سریع و جابه‌جایی بین حالت ساده و حرفه‌ای
-- حالت «ذخیره زنده» با WebView2: نمایش صفحه، ضبط پاسخ‌های شبکه و هایلایت سبز منابع ذخیره‌شده، زرد منابع در انتظار و قرمز منابع ناموفق
-- حالت «کپی وبی»: مرورگر تعاملی با آدرس، عقب/جلو و رفتن؛ صفحه‌ی اول و هر صفحه‌ی HTTP/HTTPS که کاربر در وب باز می‌کند، حتی روی دامنه‌ای دیگر، به‌همراه منابع همان صفحه ذخیره می‌شوند. وضعیت ذخیره روی خود صفحه با هایلایت سبز کم‌رنگ باقی می‌ماند.
-- ذخیره‌ی runtime برای صفحات JavaScript/SPA در `live-capture-manifest.json`
-- اگر WebView2 بدنه‌ی پاسخ را در اختیار نگذارد، دانلود با همان نشست و Cookie از مسیر پشتیبان انجام می‌شود تا منابع قرمز و دانلودنشده باقی نمانند.
-- فیلتر لینک‌ها و منابع بر اساس نوع، وضعیت، دامنه و بازه‌ی حجم (KB)
-- چت آفلاین با آرشیو برای پیدا کردن ایمیل‌ها، قیمت‌ها و متن‌های مرتبط بدون ارسال داده به اینترنت
-- نقشه‌ی گرافیکی صفحات و ارتباط لینک‌های داخلی پروژه
+CopyWeb یک‌باره به شکل فعلی ساخته نشد. برنامه از یک WinForms ساده برای دریافت یک سایت شروع شد و در چند چرخهٔ واقعیِ استفاده، گزارش خطا، اصلاح رابط، بازنویسی Downloader و آزمایش خروجی‌ها رشد کرد. به همین دلیل همهٔ شماره‌هایی که هنگام توسعه ساخته شدند الزاماً Release عمومی GitHub نیستند.
+
+| نسخه یا دوره | نوع | مهم‌ترین تغییرات |
+|---|---|---|
+| `1.0.0` تا `1.0.12` | نمونه‌های اولیهٔ داخلی | شکل‌گیری WinForms، دریافت URL، کشف لینک‌های داخلی، دانلود اولیهٔ HTML و منابع و ساخت ساختار پوشه‌های پروژه |
+| `1.0.13` | نقطهٔ عطف اولیه | مدیریت پروژه‌ها و گزارش‌ها، Resume و توقف، نمایش فایل و درصد دانلود، تنظیمات پروکسی و تست اتصال |
+| `1.0.15` | Build تثبیت و هویت بصری | آیکون و برند CopyWeb، هماهنگی نسخه در فایل اصلی و GitHub و آماده‌سازی بهتر EXE و بسته‌های انتشار |
+| `1.0.18` | Build اصلاح گردش کار | بهبود مدیریت CAPTCHA و تأیید گروهی، تغییر زبان، وضعیت دانلود، بازنویسی مسیرهای آفلاین و رفع ایرادهای اولیهٔ ذخیرهٔ صفحه‌ها |
+| `1.1.0` تا `1.1.2` | چرخهٔ تجربهٔ کاربری | راهنمای داخل برنامه، صفحهٔ آموزش، مدیریت بهتر پروژه و گزارش، Paste URL، بررسی نسخه، آیکون‌های واضح‌تر، دکمه‌های گرد و چیدمان پایدارتر |
+| `1.2.0` | Release ابزارهای حرفه‌ای | CLI و Headless، `self-test`، Resume از خط فرمان، Proxy/Retry/Timeout/Speed Limit، نسخهٔ Portable و نصب‌کنندهٔ Inno Setup |
+| `1.3.0` | ارتقای بزرگ آرشیو | پیش‌نمایش روی localhost، Watch، مخزن اشتراکی منابع، Screenshot، اعلان پایان، داشبورد آماری، چرخش پروکسی، انتشار ZIP/IIS/FTP/SFTP و نشست صفحات خصوصی |
+| `1.3.1` | صحت و کامل‌بودن آرشیو | اعتبارسنجی، Snapshot Versioning، Visual Diff، جست‌وجوی متن، اصلاح URL ویرایش‌شده، حالت ساده/پیشرفته، منابع Lazy و `srcset` و دریافت بهتر WebP/AVIF |
+| `1.3.2` | ذخیرهٔ تعاملی وب | «ذخیره زنده» و «کپی وبی»، هایلایت وضعیت منابع، ثبت New Tab داخل مرورگر، دانلود پشتیبان با Cookie، فیلتر منابع، چت آفلاین و نقشهٔ سایت |
+| `1.3.3` | شاخهٔ تثبیت داخلی | تست و اصلاح Live Capture، بازنویسی HTML/CSS، منابع WebP، لینک‌های پنجرهٔ جدید و چند طرح آزمایشی رابط؛ این نسخه Release عمومی نشد |
+| `1.3.4` | Release داشبورد جدید | رابط سرمه‌ای/بنفش، داشبورد پروژه‌های واقعی، تنظیمات پیشرفته، نمودار و درصد زنده، چیدمان واکنش‌گرا و خوانایی بهتر کنترل‌ها |
+| `1.3.5` | Release یکپارچگی و پیش‌نمایش امن | هماهنگی تمام پنجره‌های داخلی با Main UI، رفع مشکلات localhost، ورود محلی `admin/admin`، نشست HttpOnly، خروج محلی، حذف CAPTCHA فقط از آرشیو آفلاین و آزمون کامل بسته‌های GUI/CLI/Setup |
+
+### چرا شمارهٔ بعضی نسخه‌ها پرش دارد؟
+
+در جریان توسعه، هر Build مهم که برای تست روی سیستم، بررسی Visual Studio، مقایسهٔ UI یا رفع یک Crash ساخته شد یک شناسهٔ تازه گرفت. اگر آن Build ایراد داشت، شماره‌اش حذف یا دوباره استفاده نشد؛ نسخهٔ اصلاح‌شده با شمارهٔ بعدی ساخته شد تا مشخص باشد هر فایل اجرایی دقیقاً متعلق به کدام مرحله است.
+
+برای نمونه:
+
+- شماره‌های `1.0.14`، `1.0.16` و `1.0.17` میان Buildهای اصلاحی و آزمایشی مصرف شدند؛ نسخه‌های شاخص آن دوره با شماره‌های `1.0.13`، `1.0.15` و `1.0.18` نگهداری شدند.
+- `1.3.3` شاخهٔ تثبیت ذخیرهٔ زنده و رابط بود و بعد از کامل‌شدن اصلاحات، نسخهٔ عمومی با شمارهٔ `1.3.4` منتشر شد.
+- پوشه‌هایی مانند `Release-Ready-v69` تا `Release-Ready-v74` شمارهٔ نسخهٔ محصول نیستند. آن‌ها checkpointهای ساخت همان نسخه برای مقایسه و جلوگیری از گم‌شدن یک خروجی سالم هستند. برای مثال `1.3.4-Release-Ready-v74` یعنی Build داخلی 74 از خانوادهٔ محصول 1.3.4.
+
+این روش سه مزیت دارد: فایل معیوب با فایل اصلاح‌شده اشتباه نمی‌شود، گزارش Crash به Build مشخص برمی‌گردد و همیشه می‌توان آخرین خروجی سالم را با نسخهٔ جدید مقایسه کرد. در GitHub فقط نسخه‌ای قرار می‌گیرد که از مرحلهٔ Build، تست UI، `self-test`، کنترل Portable/CLI و ساخت Setup عبور کرده باشد.
+
+### چرخهٔ انتشار CopyWeb
+
+```mermaid
+flowchart LR
+    A["ایده یا گزارش کاربر"] --> B["Build داخلی با شناسه vNN"]
+    B --> C["تست UI، دانلود و localhost"]
+    C --> D{"پایدار است؟"}
+    D -- "خیر" --> E["رفع ایراد و Build جدید"]
+    E --> B
+    D -- "بله" --> F["Release Candidate"]
+    F --> G["ساخت EXE، Portable، CLI و Setup"]
+    G --> H["self-test، Smoke Test و SHA-256"]
+    H --> I["Release عمومی x.y.z در GitHub"]
+    I --> A
+```
+
+در نتیجه، پرش شماره‌ها نشانهٔ گم‌شدن نسخه نیست؛ ردپای یک چرخهٔ کنترل‌شده است که Buildهای آزمایشی را از Releaseهای پایدار جدا می‌کند.
 
 ## شروع سریع
 
-1. فایل `CopyWeb.slnx` را با Visual Studio باز کنید.
-2. بسته‌های NuGet را Restore و پروژه‌ی `CopyWeb` را Build کنید.
-3. برنامه را اجرا کنید.
-4. URL سایت و پوشه‌ی خروجی را وارد کنید.
-5. عمق لینک و حداکثر تعداد صفحات را مشخص کنید.
-6. در صورت نیاز پروکسی را فعال و با **Test Proxy** آزمایش کنید.
-7. روی **شروع بررسی سایت** بزنید.
-8. در پنجره‌ی لینک‌ها، با `+` منابع هر صفحه را باز کنید و موارد دلخواه را انتخاب یا حذف کنید.
-9. روی **دانلود موارد انتخاب‌شده** کلیک کنید.
+1. آدرس کامل سایت را وارد کنید.
+2. برای تنظیمات خودکار روی «شروع دانلود جدید» بزنید، یا «تنظیمات پیشرفته» را برای عمق، تعداد صفحه، پروکسی، Retry و محل ذخیره باز کنید.
+3. لینک‌ها را بررسی کنید و دانلود را شروع کنید.
+4. برای ادامهٔ یک کار متوقف‌شده، از بخش «پروژه‌ها» گزینهٔ Resume را انتخاب کنید.
 
-### حالت کپی وبی
+## سایت‌های نیازمند ورود
 
-برای آرشیو انتخابی، URL را وارد کنید و روی **کپی وبی** بزنید. صفحه‌ی اول بلافاصله ذخیره می‌شود؛ سپس با لینک‌ها یا نوار آدرس مرورگر داخلی به هر جای وب بروید. هر صفحه‌ی HTTP/HTTPS که باز می‌کنید، بدون محدودیت دامنه، همراه منابع همان صفحه (تصویر، CSS، JavaScript، فونت و فایل) ثبت می‌شود و پس از ذخیره با سبز کم‌رنگ روی صفحه مشخص است. فهرست سمت راست وضعیت هر منبع را نشان می‌دهد و آدرس صفحه‌های بازدیدشده در `live-capture-manifest.json` نوشته می‌شود.
+برای ذخیرهٔ محتوای مخصوص اعضا، «ورود به» یا «ذخیره زنده» را باز کنید، در سایت اصلی وارد شوید و صفحه‌های موردنظر را در مرورگر داخلی مشاهده کنید. CopyWeb رمز حساب واقعی سایت را داخل آرشیو ذخیره نمی‌کند.
 
-اگر CAPTCHA شناسایی شود، عملیات متوقف می‌شود. CAPTCHA را در مرورگر داخلی حل کنید و روی **تأیید همه صفحات** بزنید تا در همان عملیات دوباره پنجره‌ی CAPTCHA باز نشود.
-
-## Resume و پروژه‌های قدیمی
-
-اطلاعات پروژه و وضعیت دانلود در `links.json` ذخیره می‌شود. برای ادامه‌ی یک عملیات متوقف‌شده، از **Resume Project** یا بخش **Projects** استفاده کنید.
-
-پروژه‌های ساخته‌شده قبل از نسخه‌ی 1.2.0 ممکن است metadata منابع را نداشته باشند؛ برای دیدن درخت منابع، یک‌بار بررسی سایت را با نسخه‌ی جدید انجام دهید.
-
-## ساختار خروجی
+پیش‌نمایش آفلاین با یک حساب محلی ثابت محافظت می‌شود:
 
 ```text
-ProjectFolder/
-├── index.html
-├── pages/
-├── Img/
-├── CSS/
-├── JS/
-├── Fonts/
-├── Files/
-├── links.json          # checkpoint و فهرست صفحات و منابع
-├── activity.log        # گزارش متنی فعالیت
-├── activity.jsonl      # گزارش ساختاریافته برای فیلتر و خروجی
-├── assets-manifest.json # نگاشت URL/هش منابع برای جلوگیری از دریافت تکراری
-└── download-log.txt    # خلاصه‌ی دانلود
+Username: admin
+Password: admin
 ```
 
-## تنظیمات پروکسی
+این حساب فقط برای آرشیو محلی است و جایگزین حساب واقعی سایت نیست. CAPTCHA سایت اصلی را هنگام ورود آنلاین حل کنید؛ ویجت CAPTCHA در نسخهٔ آفلاین کاربردی ندارد و از صفحهٔ بازپخش‌شده حذف می‌شود. عملیات وابسته به سرور، مانند خرید، ثبت نظر و تغییر رمز، در حالت کاملاً آفلاین کار نمی‌کند.
 
-پروکسی انتخاب‌شده برای بررسی لینک‌ها، دانلود صفحات و دریافت منابع استفاده می‌شود و فقط مخصوص یک مرحله نیست.
+## اجرای CLI
 
-پروتکل‌های قابل استفاده:
-
-- HTTP
-- HTTPS
-- SOCKS5
-
-اطلاعات ورود پروکسی با Windows DPAPI برای کاربر فعلی ویندوز رمزنگاری می‌شود.
-
-## نیازمندی‌ها
-
-- Windows 10 یا بالاتر
-- Visual Studio با workload مربوط به .NET Desktop
-- .NET 10 SDK برای Build از سورس
-- Microsoft WebView2 Runtime برای CAPTCHA و حالت JavaScript/SPA
-
-پروژه از `AngleSharp` و `Microsoft.Web.WebView2` از طریق NuGet استفاده می‌کند و روی `net10.0-windows` ساخته می‌شود.
-
-## ساخت فایل اجرایی
-
-```powershell
-dotnet publish CopyWeb.csproj `
-  --configuration Release `
-  --runtime win-x64 `
-  --self-contained true `
-  --output bin\Release\net10.0-windows\publish `
-  /p:PublishSingleFile=true `
-  /p:IncludeNativeLibrariesForSelfExtract=true
-```
-
-فایل آیکون برنامه `CopyWeb.ico` است و همراه پروژه در repository قرار دارد.
-
-## ساخت فایل نصبی
-
-اسکریپت Inno Setup در `installer\CopyWeb.iss` قرار دارد. ابتدا publish را طبق دستور بالا بسازید، سپس فایل را با Inno Setup 6 باز و Compile کنید. راهنمای کامل در `installer\README.md` است و خروجی با نام `CopyWeb-Setup-1.3.2.exe` ساخته می‌شود.
-
-فایل‌های Release نسخه 1.3.2 در پوشه‌ی `releases/1.3.2` قرار دارند:
-
-- `CopyWeb-Setup-1.3.2.exe` — نصب‌کننده‌ی Windows
-- `CopyWeb.exe` — اجرای Portable تک‌فایلی
-- `CopyWeb-Portable.exe` — نام جایگزین نسخه‌ی Portable
-- `CopyWeb-Portable-1.3.2.zip` — بسته‌ی Portable
-- `CLI.md` — راهنمای کامل خط فرمان
-- `RELEASE_NOTES-1.3.2.md` — متن Release
-
-## CLI و API محلی
-
-برای اجرای بدون رابط گرافیکی:
-
-```powershell
-CopyWeb.exe --cli --url https://example.com --output C:\Sites\example --depth 3 --max-pages 500 --concurrency 4 --speed-kbps 0
+```text
+CopyWeb.exe --cli --help
 CopyWeb.exe --cli --self-test
-CopyWeb.exe --cli --url https://example.com --output C:\Sites\example --resume
-CopyWeb.exe --cli --url https://example.com --output C:\Sites\example --proxy 127.0.0.1 --proxy-kind socks5 --proxy-port 1080 --proxy-user user --proxy-password pass
+CopyWeb.exe --cli --url https://example.com --output C:\Sites\example
 ```
 
-برای دیدن همه گزینه‌ها `CopyWeb.exe --cli --help` را اجرا کنید. پارامترهای مهم شامل `--per-domain`، `--timeout`، `--retry`، `--delay-ms` و `--resume` هستند.
-
-در تنظیمات برنامه می‌توان API محلی را فعال کرد. این API فقط روی `127.0.0.1` گوش می‌دهد و مسیرهای `GET /api/status`، `GET /api/projects` و `POST /api/stop` را ارائه می‌کند.
-
-## ساختار Repository
+گزینه‌های مهم:
 
 ```text
-CopyWeb/
-├── Models/             # مدل صفحات، منابع و تنظیمات
-├── Services/           # crawler، downloader، proxy و storage
-├── MainForm.cs         # پنجره‌ی اصلی و داشبورد
-├── LinksForm.cs        # صفحات و منابع با نمایش درختی
-├── ProjectsForm.cs     # پروژه‌های ذخیره‌شده
-├── OfflinePreviewForm.cs # پیش‌نمایش localhost و لینک‌های خراب
-├── WatchForm.cs         # بررسی دوره‌ای و دانلود افزایشی
-├── DashboardForm.cs     # داشبورد وضعیت و حجم فایل‌ها
-├── PublishForm.cs       # ZIP، IIS، FTP/SFTP
-├── ReportsForm.cs      # گزارش فعالیت
-├── SettingsForm.cs     # تم، زبان و تنظیمات برنامه
-└── AboutForm.cs        # اطلاعات برنامه
+--depth N
+--max-pages N
+--concurrency N
+--per-domain N
+--speed-kbps N
+--delay-ms N
+--resume
+--proxy HOST
+--proxy-kind http|https|socks5
+--proxy-port N
+--timeout N
+--retry N
 ```
 
-تست سریع خودکار از مسیر `Tests\\Run-SelfTest.ps1` اجرا می‌شود و build، نرمال‌سازی URL/منابع و Backup/Restore پروژه را بررسی می‌کند.
+## پیش‌نیاز
 
-## نکات استفاده
+- Windows 10 یا 11 نسخهٔ 64 بیتی
+- Microsoft Edge WebView2 Runtime برای ورود، SPA، ذخیره زنده و کپی وبی
+- نسخهٔ Portable به نصب .NET نیاز ندارد
 
-- فقط سایت‌هایی را دانلود کنید که مالک آن هستید یا اجازه‌ی آرشیو آن‌ها را دارید.
-- محدودیت‌های سایت، احراز هویت، Rate Limit و CAPTCHA ممکن است روی نتیجه اثر بگذارد.
-- منابعی که در پنجره‌ی لینک‌ها لغو انتخاب شوند، در صفحه‌ی آفلاین محلی‌سازی نمی‌شوند.
-- پروکسی برنامه در تمام مراحل بررسی و دانلود مشترک است.
+## فایل‌های انتشار
 
-## Release 1.3.2 highlights
+- `CopyWeb-Windows-x64-1.3.5.zip` — نسخهٔ معمولی
+- `CopyWeb-Portable-1.3.5.zip` — نسخهٔ قابل حمل و self-contained
+- `CopyWeb-CLI-1.3.5.zip` — بستهٔ خط فرمان
+- `CopyWeb-Setup-1.3.5.exe` — فایل نصب Windows
+- `SHA256SUMS.txt` — هش فایل‌های انتشار
 
-- Live Archive now rewrites captured HTML, inline styles and CSS `url(...)` references to the saved local `Img`, `CSS`, `JS`, `Fonts` and `Files` paths, so `index.html` works offline instead of showing broken remote images.
-- The WebView2 fallback downloader now sends browser-like `Accept`, `Referer` and Cookie headers, improving delivery of protected WebP/AVIF CDN images.
-- The crawler also scans raw HTML/inline data for WebP and AVIF candidates used by custom elements or embedded JSON.
-- Live Archive supports multi-select resource rows with per-item retry and confirmed file deletion.
-- `target=_blank` and `window.open` links stay inside the capture browser, so their pages are archived instead of opening outside CopyWeb.
-- Live Archive renders a page in WebView2, captures successful network responses and marks saved DOM resources with a pale-green overlay.
-- Capture status is visible per URL: pending (yellow), saved (green) or failed (red); `live-capture-manifest.json` records the result.
-- Links and resources can be filtered by type, state, domain and size range.
-- Offline Archive Chat finds emails, price-related lines and page matches locally.
-- Site Graph visualizes internal page relationships from the saved HTML.
+## سازنده
 
-## Release 1.3.1 highlights
-
-- Advanced mode is clearly marked with a red button and white text; simple mode remains uncluttered for first-time users.
-- Archive validation detects empty/corrupt files, broken local links and inconsistent manifests.
-- Snapshot versioning stores timestamped SHA-256 manifests; Visual Diff highlights added, removed and changed files.
-- Full-text search scans saved HTML pages and opens the matching file on double-click.
-- Loading a project for editing no longer starts Resume or overwrites a corrected URL.
-- Lazy, responsive and inline image discovery now covers common `data-*` attributes, `srcset`, `picture/source`, WebP and AVIF.
-- Simple mode lets a new user enter only a URL and start an automatic download; advanced mode exposes every setting.
-
-## Release 1.3.0 highlights
-
-- Bounded parallel downloads (1-16 workers) with a visible active/queued count.
-- Per-page progress, aggregate progress, transfer speed, expected bytes and free disk space.
-- Atomic checkpoint after each completed page; stop/resume keeps pending work safe.
-- Disk-space guard prevents starting when the selected drive is below the configured minimum.
-- Shared asset locking prevents duplicate concurrent downloads of the same image, CSS or script.
-- Asset de-duplication prevents repeated image URLs, fragment variants and common cache-busting query variants from being requested more than once in a run.
-- Identical image bytes found under different URLs are stored only once and all pages point to the same local file.
-- `assets-manifest.json` is written atomically so resume runs reuse already downloaded assets instead of fetching them again.
-- Sidebar branding is fully visible at the default window size.
-- Version checker in About can compare the latest GitHub release and open the repository only after user confirmation.
-- Projects view shows each storage folder and supports confirmed `X` deletion of a project and its downloaded files.
-- URL input includes a one-click Clipboard paste button.
-- Sidebar navigation now uses clear home, globe, gear, chart and info icons.
-- All application buttons use rounded corners and a calm low-saturation slate palette.
-- Proxy testing is presented as a visible rounded action button alongside the download controls.
-- URL input now uses a rounded bordered field with a dedicated Clipboard paste action.
-- Project and current-file progress captions are spaced below the status summary so the text stays fully readable.
-- New Tutorial window explains scan, depth, page limit, proxy, resume, CAPTCHA, output folders and resource selection; it also links to support email.
-- Project information labels are aligned to the opposite side for clearer RTL reading.
-- Proxy credential fields stay disabled until proxy is enabled; the proxy test button turns muted green after a successful connection.
-- URL input uses a clear bordered field for reliable visibility in the Windows Forms designer and runtime.
-- Proxy profiles, per-domain connection limits, scheduled one-time downloads and project copy/rename are available.
-- Download Monitor includes search, state filtering, a progress chart, URL double-click navigation and per-link retry/stop.
-- Optional localhost API exposes `/api/status`, `/api/projects` and `/api/stop` without opening a network port externally.
-- Drag & Drop accepts a URL or a text file whose first line is a URL.
-- Offline preview server runs archived pages on `127.0.0.1` and checks broken local links before delivery.
-- Watch mode stores page hashes and launches an incremental `--resume` download only when content changes.
-- Images use a content-addressed shared repository under `%LOCALAPPDATA%\CopyWeb\SharedAssets`; projects use links/hard-links when Windows permits.
-- Before/after rendered screenshots can be captured into the project `screenshots` folder.
-- Completion notification includes Windows balloon notification and system sound; webhook and mailto hooks are available in the notification service.
-- Project dashboard summarizes page state, file count and size by type.
-- Publish tools create ZIP archives, prepare an IIS-ready folder and upload a project to FTP/SFTP (SFTP uses Windows OpenSSH and an SSH key).
-- Saved proxy profiles are health-checked and rotated between requests when more than one enabled profile is available.
-
-## English summary
-
-CopyWeb is a Windows Forms website archiver. It crawls internal pages, filters external and non-page URLs, shows each page’s images/CSS/JavaScript/media in an expandable `+ / −` resource tree, lets the user select resources independently, rewrites links for offline browsing, supports authenticated WebView2 sessions, resume checkpoints, HTTP/HTTPS/SOCKS5 proxies, DPAPI credential protection, CAPTCHA handoff, detailed reports, themes, and Persian/English localization.
-
-**CopyWeb Created by SassanFa**  
-**Email:** [Sassanfa@gmail.com](mailto:Sassanfa@gmail.com)  
-**Version:** 1.3.2
-
-## مجوز و مسئولیت استفاده
-
-کاربر مسئول رعایت قوانین، مجوز دسترسی و شرایط استفاده‌ی سایت مقصد است. این پروژه برای آرشیو مجاز و استفاده‌ی قانونی ارائه شده است.
+CopyWeb Created by SassanFa  
+Version: 1.3.5  
+Email: Sassanfa@gmail.com  
+GitHub: https://github.com/SassanFa/CopyWeb
