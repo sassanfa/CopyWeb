@@ -133,3 +133,24 @@ CopyWeb Created by SassanFa
 Version: 1.3.6  
 Email: Sassanfa@gmail.com  
 GitHub: https://github.com/SassanFa/CopyWeb
+# ❤️ Support Development
+
+If you enjoy using this app and would like to support its future development, you can donate using any of the following cryptocurrencies.
+
+**USDT (TRC20)**
+
+`TQgwp46i2k1pi7DA2pNgjVF1GfSZp6MaZ3`
+
+**TRON (TRX)**
+
+`TQgwp46i2k1pi7DA2pNgjVF1GfSZp6MaZ3`
+
+**Ethereum (ETH)**
+
+`0xc663bb851896ea64fc3be8f4b239f328f55af303`
+
+**Bitcoin (BTC)**
+
+`bc1qd8rsrncm8snaa47pks9nfkn0lvqrrxuhmssrsx`
+
+Thank you for your support! Your contribution helps improve and maintain this project. ❤️
