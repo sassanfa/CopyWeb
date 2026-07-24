@@ -57,6 +57,7 @@ public sealed class CaptchaForm : Form
         // Keep the action bar above the browser surface. This is explicit because
         // DockStyle.Fill controls can otherwise cover a top-docked panel at runtime.
         top.BringToFront();
+        UiTheme.StyleDialog(this);
         Services.Localization.Apply(this, Services.AppSettingsStore.Load().Language);
         Shown += InitializeBrowserAsync;
     }

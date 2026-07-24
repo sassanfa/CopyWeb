@@ -40,6 +40,7 @@ public sealed class SettingsForm : Form
         RightToLeft = RightToLeft.Yes;
         BackColor = UiTheme.Background;
         BuildUi(current);
+        UiTheme.StyleDialog(this);
         Localization.Apply(this, current.Language);
     }
 
@@ -52,11 +53,13 @@ public sealed class SettingsForm : Form
 
         var card = UiTheme.Card();
         card.Dock = DockStyle.Fill;
+        card.AutoScroll = true;
+        card.AutoScrollMinSize = new Size(0, 860);
 
         var presetLabel = UiTheme.Label("قالب رنگی", 11, FontStyle.Bold);
         presetLabel.Location = new Point(22, 24);
         _preset.DropDownStyle = ComboBoxStyle.DropDownList;
-        _preset.Items.AddRange(["آبی", "سبز", "بنفش", "تیره", "سفارشی"]);
+        _preset.Items.AddRange(["شب بنفش", "شب آبی", "شب سبز", "تیره", "سفارشی"]);
         _preset.SelectedItem = _preset.Items.Contains(current.ThemePreset) ? current.ThemePreset : "سفارشی";
         _preset.Location = new Point(22, 54);
         _preset.Width = 220;
@@ -94,8 +97,11 @@ public sealed class SettingsForm : Form
         _cookies.Text = current.CustomCookies; _cookies.Location = new Point(22, 525); _cookies.Width = 640; _cookies.Height = 28; _cookies.BorderStyle = BorderStyle.FixedSingle; _cookies.RightToLeft = RightToLeft.No;
 
         _compactMode.Text = "حالت Compact برای نمایش فشرده‌تر"; _compactMode.AutoSize = true; _compactMode.Checked = current.CompactMode; _compactMode.Location = new Point(22, 575);
-        _apiEnabled.Text = "فعال‌سازی API محلی فقط روی همین سیستم"; _apiEnabled.AutoSize = true; _apiEnabled.Checked = current.EnableLocalApi; _apiEnabled.Location = new Point(22, 610);
-        _apiPort.Minimum = 1024; _apiPort.Maximum = 65535; _apiPort.Value = Math.Clamp(current.LocalApiPort, 1024, 65535); _apiPort.Width = 90; _apiPort.Location = new Point(300, 606);
+        var apiRow = new Panel { Location = new Point(22, 600), Size = new Size(640, 42), BackColor = UiTheme.Surface, RightToLeft = RightToLeft.No };
+        _apiEnabled.Text = "فعال‌سازی API محلی فقط روی همین سیستم"; _apiEnabled.AutoSize = false; _apiEnabled.Checked = current.EnableLocalApi; _apiEnabled.SetBounds(0, 7, 365, 28); _apiEnabled.RightToLeft = RightToLeft.Yes; _apiEnabled.TextAlign = ContentAlignment.MiddleRight;
+        var apiPortLabel = UiTheme.Label("پورت API", 9, color: UiTheme.Muted); apiPortLabel.AutoSize = false; apiPortLabel.SetBounds(405, 8, 82, 26); apiPortLabel.TextAlign = ContentAlignment.MiddleRight;
+        _apiPort.Minimum = 1024; _apiPort.Maximum = 65535; _apiPort.Value = Math.Clamp(current.LocalApiPort, 1024, 65535); _apiPort.SetBounds(500, 6, 120, 28); _apiPort.RightToLeft = RightToLeft.No;
+        apiRow.Controls.AddRange([_apiEnabled, apiPortLabel, _apiPort]);
         var apiHint = UiTheme.Label("GET /api/status   GET /api/projects   POST /api/stop", 8, color: UiTheme.Muted); apiHint.Location = new Point(22, 650); apiHint.AutoSize = true; apiHint.RightToLeft = RightToLeft.No;
 
         _notifications.Text = "اعلان پایان دانلود با صدا و Windows notification"; _notifications.AutoSize = true; _notifications.Checked = current.EnableCompletionNotification; _notifications.Location = new Point(22, 690);
@@ -104,7 +110,8 @@ public sealed class SettingsForm : Form
         var emailLabel = UiTheme.Label("ایمیل اعلان (اختیاری؛ پنجره Mail آماده می‌شود)", 9, color: UiTheme.Muted); emailLabel.Location = new Point(22, 780);
         ConfigureEndpoint(_email, current.CompletionEmail, 22, 804, 640);
 
-        card.Controls.AddRange([presetLabel, _preset, primaryLabel, _primaryColor, backgroundLabel, _backgroundColor, _saveLogs, hint, languageLabel, _language, _renderJavaScript, agentLabel, _userAgent, headersLabel, _headers, cookiesLabel, _cookies, _compactMode, _apiEnabled, _apiPort, apiHint, _notifications, webhookLabel, _webhook, emailLabel, _email]);
+        card.Controls.AddRange([presetLabel, _preset, primaryLabel, _primaryColor, backgroundLabel, _backgroundColor, _saveLogs, hint, languageLabel, _language, _renderJavaScript, agentLabel, _userAgent, headersLabel, _headers, cookiesLabel, _cookies, _compactMode, apiRow, apiHint, _notifications, webhookLabel, _webhook, emailLabel, _email]);
+        StyleSettingsControls(card);
 
         var buttons = new FlowLayoutPanel
         {
@@ -129,6 +136,45 @@ public sealed class SettingsForm : Form
         Controls.Add(root);
     }
 
+    private static void StyleSettingsControls(Control root)
+    {
+        foreach (Control control in Enumerate(root))
+        {
+            switch (control)
+            {
+                case TextBox textBox:
+                    textBox.BackColor = Color.FromArgb(28, 37, 76);
+                    textBox.ForeColor = UiTheme.Text;
+                    textBox.BorderStyle = BorderStyle.FixedSingle;
+                    break;
+                case ComboBox combo:
+                    combo.BackColor = Color.FromArgb(28, 37, 76);
+                    combo.ForeColor = UiTheme.Text;
+                    combo.FlatStyle = FlatStyle.Flat;
+                    break;
+                case NumericUpDown numeric:
+                    numeric.BackColor = Color.FromArgb(28, 37, 76);
+                    numeric.ForeColor = UiTheme.Text;
+                    numeric.BorderStyle = BorderStyle.FixedSingle;
+                    break;
+                case CheckBox checkBox:
+                    checkBox.BackColor = UiTheme.Surface;
+                    checkBox.ForeColor = UiTheme.Text;
+                    checkBox.UseVisualStyleBackColor = false;
+                    break;
+            }
+        }
+    }
+
+    private static IEnumerable<Control> Enumerate(Control root)
+    {
+        foreach (Control child in root.Controls)
+        {
+            yield return child;
+            foreach (var descendant in Enumerate(child)) yield return descendant;
+        }
+    }
+
     private void ConfigureColorButton(Button button, string text, Color color, int x, int y)
     {
         button.Text = text;
@@ -145,25 +191,25 @@ public sealed class SettingsForm : Form
     {
         switch (_preset.SelectedItem?.ToString())
         {
-            case "سبز":
-                _primary = Color.FromArgb(91, 130, 111);
-                _background = Color.FromArgb(242, 250, 247);
-                _surface = Color.White;
+            case "شب سبز":
+                _primary = Color.FromArgb(58, 140, 110);
+                _background = Color.FromArgb(5, 20, 20);
+                _surface = Color.FromArgb(14, 39, 36);
                 break;
-            case "بنفش":
-                _primary = Color.FromArgb(115, 105, 140);
-                _background = Color.FromArgb(248, 246, 255);
-                _surface = Color.White;
+            case "شب بنفش":
+                _primary = Color.FromArgb(111, 82, 255);
+                _background = Color.FromArgb(8, 12, 37);
+                _surface = Color.FromArgb(20, 26, 57);
                 break;
             case "تیره":
-                _primary = Color.FromArgb(106, 130, 160);
-                _background = Color.FromArgb(24, 31, 42);
-                _surface = Color.FromArgb(35, 45, 60);
+                _primary = Color.FromArgb(90, 110, 145);
+                _background = Color.FromArgb(12, 17, 27);
+                _surface = Color.FromArgb(24, 31, 45);
                 break;
-            case "آبی":
-                _primary = Color.FromArgb(92, 112, 146);
-                _background = Color.FromArgb(244, 247, 251);
-                _surface = Color.White;
+            case "شب آبی":
+                _primary = Color.FromArgb(70, 98, 230);
+                _background = Color.FromArgb(5, 12, 30);
+                _surface = Color.FromArgb(13, 26, 55);
                 break;
             default:
                 return;
@@ -184,7 +230,11 @@ public sealed class SettingsForm : Form
         using var dialog = new ColorDialog { Color = primary ? _primary : _background, FullOpen = true };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         if (primary) _primary = dialog.Color;
-        else _background = dialog.Color;
+        else
+        {
+            _background = dialog.Color;
+            _surface = IsDark(_background) ? ControlPaint.Light(_background, 0.14F) : Color.White;
+        }
         _preset.SelectedItem = "سفارشی";
         UpdateColorButtons();
     }
@@ -224,9 +274,6 @@ public sealed class SettingsForm : Form
         result.MinimumFreeDiskSpaceMb = previous.MinimumFreeDiskSpaceMb;
         result.MaxDownloadSpeedKbps = previous.MaxDownloadSpeedKbps;
         result.MaxConnectionsPerDomain = previous.MaxConnectionsPerDomain;
-        result.CompactMode = previous.CompactMode;
-        result.EnableLocalApi = previous.EnableLocalApi;
-        result.LocalApiPort = previous.LocalApiPort;
         result.ReadSitemaps = previous.ReadSitemaps;
         result.FollowCanonicalLinks = previous.FollowCanonicalLinks;
         result.ProxyProfiles = previous.ProxyProfiles;

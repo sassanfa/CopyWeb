@@ -24,6 +24,7 @@ public sealed class LoginForm : Form
         RightToLeft = RightToLeft.Yes;
         BackColor = UiTheme.Background;
         BuildUi();
+        UiTheme.StyleDialog(this);
         Shown += InitializeAsync;
     }
 

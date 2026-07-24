@@ -37,6 +37,7 @@ public sealed partial class SiteDownloader(SiteSession session)
     private int _maxConnectionsPerDomain = 2;
     private string _assetManifestFile = string.Empty;
     private bool _assetManifestLoaded;
+    private ProxySnapshot? _proxySnapshot;
 
     private sealed class AssetManifest
     {
@@ -54,7 +55,8 @@ public sealed partial class SiteDownloader(SiteSession session)
         int maxConcurrentDownloads = 4,
         long minimumFreeDiskSpaceMb = 512,
         int maxDownloadSpeedKbps = 0,
-        int maxConnectionsPerDomain = 2)
+        int maxConnectionsPerDomain = 2,
+        ProxySnapshot? proxySnapshot = null)
     {
         _outputRoot = outputDirectory;
         _progress = progress;
@@ -81,6 +83,7 @@ public sealed partial class SiteDownloader(SiteSession session)
         _lastProgressTimestamp = 0;
         _maxDownloadSpeedKbps = Math.Max(0, maxDownloadSpeedKbps);
         _maxConnectionsPerDomain = Math.Clamp(maxConnectionsPerDomain, 1, 32);
+        _proxySnapshot = proxySnapshot;
 
         var minimumFreeBytes = Math.Max(0, minimumFreeDiskSpaceMb) * 1024L * 1024L;
         var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(outputDirectory))!);
@@ -288,7 +291,7 @@ public sealed partial class SiteDownloader(SiteSession session)
     private async Task SaveCheckpointAsync(Uri root, IReadOnlyCollection<DownloadItem> items, string outputDirectory, CancellationToken token = default)
     {
         await _checkpointGate.WaitAsync(token).ConfigureAwait(false);
-        try { await ProjectStorage.SaveAsync(Path.Combine(outputDirectory, "links.json"), root, items, token).ConfigureAwait(false); }
+        try { await ProjectStorage.SaveAsync(Path.Combine(outputDirectory, "links.json"), root, items, _proxySnapshot, token).ConfigureAwait(false); }
         finally { _checkpointGate.Release(); }
     }
 
@@ -341,7 +344,7 @@ public sealed partial class SiteDownloader(SiteSession session)
             if (!TryResourceUri(pageUri, raw, out var resource)) continue;
             var selection = FindResource(pageItem, resource);
             if (selection is { IsSelected: false }) continue;
-            var local = await DownloadAssetAsync(resource, token).ConfigureAwait(false);
+            var local = await DownloadAssetAsync(resource, pageUri, token).ConfigureAwait(false);
             if (local is not null)
             {
                 var rewritten = Relative(pageFile, local);
@@ -361,7 +364,7 @@ public sealed partial class SiteDownloader(SiteSession session)
                 if (pieces.Length == 0 || !TryResourceUri(pageUri, pieces[0], out var resource)) continue;
                 var selection = FindResource(pageItem, resource);
                 if (selection is { IsSelected: false }) continue;
-                var local = await DownloadAssetAsync(resource, token).ConfigureAwait(false);
+                var local = await DownloadAssetAsync(resource, pageUri, token).ConfigureAwait(false);
                 if (local is not null)
                 {
                     rewritten.Add(Relative(pageFile, local) + (pieces.Length > 1 ? " " + pieces[1] : ""));
@@ -378,7 +381,7 @@ public sealed partial class SiteDownloader(SiteSession session)
             foreach (Match match in CssUrlRegex().Matches(style).ToList())
             {
                 if (!TryResourceUri(pageUri, match.Groups[2].Value, out var resource)) continue;
-                var local = await DownloadAssetAsync(resource, token).ConfigureAwait(false);
+                var local = await DownloadAssetAsync(resource, pageUri, token).ConfigureAwait(false);
                 if (local is not null) style = style.Replace(match.Groups[2].Value, Relative(pageFile, local), StringComparison.Ordinal);
             }
             element.SetAttribute("style", style);
@@ -388,9 +391,62 @@ public sealed partial class SiteDownloader(SiteSession session)
             var css = styleElement.TextContent ?? string.Empty;
             styleElement.TextContent = await RewriteCssAsync(css, pageUri, pageFile, token).ConfigureAwait(false);
         }
+
+        // Resources discovered in inline JSON/custom attributes do not always
+        // have a standard img/src selector. Download every remaining selected
+        // candidate and rewrite its literal forms wherever possible.
+        foreach (var selection in pageItem.Resources.Where(resource => resource.IsSelected && resource.State != LinkState.Downloaded))
+        {
+            if (!Uri.TryCreate(selection.Url, UriKind.Absolute, out var resource)) continue;
+            var local = await DownloadAssetAsync(resource, pageUri, token).ConfigureAwait(false);
+            if (local is null)
+            {
+                selection.State = LinkState.Failed;
+                selection.Error = "منبع قابل دریافت نیست";
+                continue;
+            }
+            RewriteEmbeddedResourceReferences(document, pageUri, pageFile, resource, local);
+            selection.State = LinkState.Downloaded;
+            selection.Error = null;
+            selection.SizeBytes = File.Exists(local) ? new FileInfo(local).Length : 0;
+        }
     }
 
-    private async Task<string?> DownloadAssetAsync(Uri uri, CancellationToken token)
+    private static void RewriteEmbeddedResourceReferences(IDocument document, Uri pageUri, string pageFile, Uri resource, string local)
+    {
+        var replacement = Relative(pageFile, local);
+        var relative = pageUri.MakeRelativeUri(resource).ToString();
+        var rootRelative = resource.PathAndQuery;
+        var variants = new[]
+        {
+            resource.AbsoluteUri,
+            resource.AbsoluteUri.Replace("/", "\\/", StringComparison.Ordinal),
+            relative,
+            relative.Replace("/", "\\/", StringComparison.Ordinal),
+            rootRelative,
+            rootRelative.Replace("/", "\\/", StringComparison.Ordinal)
+        }.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.Ordinal).ToArray();
+
+        foreach (var script in document.QuerySelectorAll("script:not([src])"))
+        {
+            var text = script.TextContent ?? string.Empty;
+            foreach (var variant in variants)
+                text = text.Replace(variant, replacement, StringComparison.Ordinal);
+            script.TextContent = text;
+        }
+
+        foreach (var element in document.All)
+        foreach (var attribute in element.Attributes.ToList())
+        {
+            var value = attribute.Value;
+            var rewritten = value;
+            foreach (var variant in variants)
+                rewritten = rewritten.Replace(variant, replacement, StringComparison.Ordinal);
+            if (!rewritten.Equals(value, StringComparison.Ordinal)) element.SetAttribute(attribute.Name, rewritten);
+        }
+    }
+
+    private async Task<string?> DownloadAssetAsync(Uri uri, Uri? referer, CancellationToken token)
     {
         var key = UrlTools.ResourceCacheKey(uri);
         var gate = _assetGates.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
@@ -413,13 +469,26 @@ public sealed partial class SiteDownloader(SiteSession session)
                     return knownFile;
                 }
             }
-            using var response = await _session.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+            using var response = await _session.GetResourceAsync(uri, referer, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode) return null;
             var contentType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+            var bytes = await ReadContentWithProgressAsync(response.Content, uri, "در حال دانلود منبع صفحه", token).ConfigureAwait(false);
             var (folder, extension) = Classify(uri, contentType);
+            var sniffedImageExtension = SniffImageExtension(bytes);
+            if (sniffedImageExtension is not null)
+            {
+                folder = "Img";
+                extension = sniffedImageExtension;
+            }
+            else if (folder == "Img" && LooksLikeHtml(bytes))
+            {
+                // A CDN/challenge page must never be saved with a .webp/.avif
+                // extension. Removing it from the result also keeps the remote
+                // URL in the HTML so the failed item remains visible to Retry.
+                return null;
+            }
             var stem = UrlTools.CleanName(Path.GetFileNameWithoutExtension(uri.AbsolutePath), "asset");
             var file = Path.Combine(_outputRoot, folder, $"{stem}-{UrlTools.Hash(uri.AbsoluteUri)}{extension}");
-            var bytes = await ReadContentWithProgressAsync(response.Content, uri, "در حال دانلود منبع صفحه", token).ConfigureAwait(false);
             var contentHash = Convert.ToHexString(SHA256.HashData(bytes));
             // Content-level deduplication is intentionally applied to images. CSS files can contain relative
             // imports, so sharing a CSS file solely because its bytes match could break those relative paths.
@@ -516,7 +585,7 @@ public sealed partial class SiteDownloader(SiteSession session)
         foreach (var value in CssUrlRegex().Matches(css).Select(m => m.Groups[2].Value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList())
         {
             if (!TryResourceUri(cssUri, value, out var resource)) continue;
-            var local = await DownloadAssetAsync(resource, token).ConfigureAwait(false);
+            var local = await DownloadAssetAsync(resource, cssUri, token).ConfigureAwait(false);
             if (local is not null) css = css.Replace(value, Relative(cssFile, local), StringComparison.Ordinal);
         }
         return css;
@@ -533,6 +602,30 @@ public sealed partial class SiteDownloader(SiteSession session)
     }
 
     private static string MimeExtension(string mime) => mime.ToLowerInvariant() switch { "image/jpeg" => ".jpg", "image/png" => ".png", "image/gif" => ".gif", "image/webp" => ".webp", "image/avif" => ".avif", "image/bmp" => ".bmp", "image/jxl" => ".jxl", "image/svg+xml" => ".svg", _ => ".img" };
+
+    private static string? SniffImageExtension(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length >= 12 &&
+            bytes[..4].SequenceEqual("RIFF"u8) &&
+            bytes.Slice(8, 4).SequenceEqual("WEBP"u8)) return ".webp";
+        if (bytes.Length >= 12 && bytes.Slice(4, 4).SequenceEqual("ftyp"u8))
+        {
+            var brand = Encoding.ASCII.GetString(bytes.Slice(8, Math.Min(24, bytes.Length - 8)));
+            if (brand.Contains("avif", StringComparison.Ordinal) || brand.Contains("avis", StringComparison.Ordinal)) return ".avif";
+        }
+        if (bytes.Length >= 8 && bytes[..8].SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 })) return ".png";
+        if (bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) return ".jpg";
+        if (bytes.Length >= 6 && (bytes[..6].SequenceEqual("GIF87a"u8) || bytes[..6].SequenceEqual("GIF89a"u8))) return ".gif";
+        return null;
+    }
+
+    private static bool LooksLikeHtml(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.IsEmpty) return false;
+        var sample = Encoding.UTF8.GetString(bytes[..Math.Min(bytes.Length, 512)]).TrimStart('\uFEFF', '\0', ' ', '\t', '\r', '\n');
+        return sample.StartsWith("<!doctype html", StringComparison.OrdinalIgnoreCase) ||
+               sample.StartsWith("<html", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static bool TryResourceUri(Uri page, string? value, out Uri uri)
     {

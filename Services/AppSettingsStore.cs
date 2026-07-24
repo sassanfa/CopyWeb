@@ -18,9 +18,25 @@ public static class AppSettingsStore
         {
             if (!File.Exists(FilePath)) return new AppSettings();
             var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), Options) ?? new AppSettings();
-            // Migrate the original saturated blue default to the calmer slate palette.
-            if (settings.PrimaryColorArgb == Color.FromArgb(39, 91, 219).ToArgb())
-                settings.PrimaryColorArgb = Color.FromArgb(92, 112, 146).ToArgb();
+            // Migrate the old built-in light themes to the new midnight-purple UI.
+            // Custom themes are preserved; these exact values are the presets shipped
+            // by versions before 1.3.4 (blue, slate and green).
+            var oldBuiltInTheme = settings.PrimaryColorArgb == Color.FromArgb(39, 91, 219).ToArgb()
+                || settings.ThemePreset == "شب بنفش" && settings.PrimaryColorArgb == Color.FromArgb(20, 25, 58).ToArgb()
+                || settings.PrimaryColorArgb == Color.FromArgb(92, 112, 146).ToArgb()
+                || settings.PrimaryColorArgb == Color.FromArgb(91, 130, 111).ToArgb()
+                || settings.BackgroundColorArgb == Color.FromArgb(242, 250, 247).ToArgb()
+                || settings.BackgroundColorArgb == Color.FromArgb(248, 246, 255).ToArgb()
+                || settings.BackgroundColorArgb == Color.FromArgb(244, 247, 251).ToArgb()
+                || settings.ThemePreset is "آبی" or "سبز" or "خاکستری" or "بنفش";
+            if (oldBuiltInTheme)
+            {
+                settings.ThemePreset = "شب بنفش";
+                settings.PrimaryColorArgb = Color.FromArgb(111, 82, 255).ToArgb();
+                settings.BackgroundColorArgb = Color.FromArgb(8, 12, 37).ToArgb();
+                settings.SurfaceColorArgb = Color.FromArgb(20, 26, 57).ToArgb();
+                Save(settings);
+            }
             return settings;
         }
         catch

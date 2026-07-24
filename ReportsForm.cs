@@ -24,6 +24,7 @@ public sealed class ReportsForm : Form
         RightToLeft = RightToLeft.Yes;
         BackColor = UiTheme.Background;
         BuildUi();
+        UiTheme.StyleDialog(this);
         Localization.Apply(this, AppSettingsStore.Load().Language);
         LoadReports();
     }
@@ -44,13 +45,19 @@ public sealed class ReportsForm : Form
         _severity.Items.AddRange(["همه رویدادها", "موفق", "اطلاعات", "هشدار", "خطا"]);
         _severity.SelectedIndex = 0;
         _severity.Width = 130;
+        _severity.FlatStyle = FlatStyle.Flat;
+        _severity.BackColor = UiTheme.Surface;
+        _severity.ForeColor = UiTheme.Text;
         _severity.SelectedIndexChanged += (_, _) => ApplyEntryFilter();
         _search.PlaceholderText = "جست‌وجو در گزارش...";
         _search.Width = 250;
+        _search.BackColor = UiTheme.Surface;
+        _search.ForeColor = UiTheme.Text;
+        _search.BorderStyle = BorderStyle.FixedSingle;
         _search.TextChanged += (_, _) => ApplyEntryFilter();
-        var exportText = UiTheme.Button("خروجی TXT", Color.White); exportText.Tag = "secondary-button"; exportText.Width = 95; exportText.Click += (_, _) => Export(ActivityExport.Text);
-        var exportCsv = UiTheme.Button("خروجی CSV", Color.White); exportCsv.Tag = "secondary-button"; exportCsv.Width = 95; exportCsv.Click += (_, _) => Export(ActivityExport.Csv);
-        var exportJson = UiTheme.Button("خروجی JSON", Color.White); exportJson.Tag = "secondary-button"; exportJson.Width = 105; exportJson.Click += (_, _) => Export(ActivityExport.Json);
+        var exportText = UiTheme.Button("TXT", Color.White); exportText.Tag = "secondary-button"; exportText.Width = 88; exportText.Click += (_, _) => Export(ActivityExport.Text);
+        var exportCsv = UiTheme.Button("CSV", Color.White); exportCsv.Tag = "secondary-button"; exportCsv.Width = 88; exportCsv.Click += (_, _) => Export(ActivityExport.Csv);
+        var exportJson = UiTheme.Button("JSON", Color.White); exportJson.Tag = "secondary-button"; exportJson.Width = 88; exportJson.Click += (_, _) => Export(ActivityExport.Json);
         toolbar.Controls.AddRange([exportJson, exportCsv, exportText, _search, _severity]);
 
         var left = UiTheme.Card();
@@ -59,6 +66,7 @@ public sealed class ReportsForm : Form
         _reports.Dock = DockStyle.Fill;
         _reports.BorderStyle = BorderStyle.None;
         _reports.BackColor = UiTheme.Surface;
+        _reports.ForeColor = UiTheme.Text;
         _reports.Font = UiTheme.NormalFont;
         _reports.SelectedIndexChanged += (_, _) => ShowSelectedReport();
         left.Controls.Add(_reports);
@@ -68,6 +76,7 @@ public sealed class ReportsForm : Form
         _viewer.Dock = DockStyle.Fill;
         _viewer.ReadOnly = true;
         _viewer.BackColor = UiTheme.Surface;
+        _viewer.ForeColor = UiTheme.Text;
         _viewer.BorderStyle = BorderStyle.None;
         _viewer.Font = new Font("Consolas", 10);
         right.Controls.Add(_viewer);

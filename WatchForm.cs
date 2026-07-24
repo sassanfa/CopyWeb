@@ -19,6 +19,7 @@ public sealed class WatchForm : Form
         StartPosition = FormStartPosition.CenterParent; Size = new Size(700, 480); MinimumSize = new Size(560, 380);
         Font = UiTheme.NormalFont; RightToLeft = RightToLeft.Yes; BackColor = UiTheme.Background;
         BuildUi();
+        UiTheme.StyleDialog(this);
     }
 
     private void BuildUi()

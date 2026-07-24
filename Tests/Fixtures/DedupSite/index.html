@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="fa">
+<head>
+  <meta charset="utf-8">
+  <title>CopyWeb WebP test</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <img src="hero.webp?v=1" alt="hero">
+  <img srcset="hero.webp?v=2 1x, hero.webp?v=3 2x" alt="responsive hero">
+  <img src="rendered-image?format=webp" alt="extensionless webp">
+  <div class="hero">WebP background</div>
+  <script>
+    window.themeAssets = { lazyCover: "images/lazy.webp" };
+  </script>
+</body>
+</html>

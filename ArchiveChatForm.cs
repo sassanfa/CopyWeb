@@ -20,6 +20,7 @@ public sealed class ArchiveChatForm : Form
         RightToLeft = RightToLeft.Yes;
         BackColor = UiTheme.Background;
         BuildUi();
+        UiTheme.StyleDialog(this);
     }
 
     private void BuildUi()

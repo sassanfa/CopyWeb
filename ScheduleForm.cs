@@ -19,6 +19,7 @@ public sealed class ScheduleForm : Form
         var save = UiTheme.Button("ثبت زمان‌بندی", UiTheme.Primary); save.Location = new Point(260, 165); save.Width = 130; save.Click += async (_, _) => await SaveAsync();
         var cancel = UiTheme.Button("انصراف", Color.White); cancel.Tag = "secondary-button"; cancel.Location = new Point(400, 165); cancel.Width = 90; cancel.Click += (_, _) => Close();
         Controls.AddRange([title, _name, _when, info, save, cancel]);
+        UiTheme.StyleDialog(this);
     }
     private async Task SaveAsync()
     {

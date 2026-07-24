@@ -15,7 +15,9 @@ public sealed class ArchiveValidationForm : Form
         _summary.Dock = DockStyle.Top; _summary.Height = 30;
         _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "نوع", Width = 110 }); _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "مسیر", Width = 300 }); _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "توضیحات", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
         var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48, FlowDirection = FlowDirection.RightToLeft, WrapContents = false }; var run = UiTheme.Button("شروع اعتبارسنجی", UiTheme.Primary); run.Width = 150; run.Click += async (_, _) => await RunAsync(); var close = UiTheme.Button("بستن", Color.White); close.Tag = "secondary-button"; close.Width = 90; close.Click += (_, _) => Close(); actions.Controls.AddRange([close, run]);
-        root.Controls.Add(_grid); root.Controls.Add(_summary); root.Controls.Add(actions); root.Controls.Add(title); Controls.Add(root); Shown += async (_, _) => await RunAsync();
+        root.Controls.Add(_grid); root.Controls.Add(_summary); root.Controls.Add(actions); root.Controls.Add(title); Controls.Add(root);
+        UiTheme.StyleDialog(this);
+        Shown += async (_, _) => await RunAsync();
     }
 
     private async Task RunAsync()

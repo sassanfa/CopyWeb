@@ -10,17 +10,25 @@ public sealed class LocalApiServer : IDisposable
     private readonly Func<object> _status;
     private readonly Action _stop;
     private CancellationTokenSource? _cts;
+    private Task? _listenTask;
+    private bool _disposed;
 
     public LocalApiServer(int port, Func<object> status, Action stop)
     {
         if (port is < 1024 or > 65535) throw new ArgumentOutOfRangeException(nameof(port));
-        _status = status; _stop = stop; _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        _status = status;
+        _stop = stop;
+        _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        _listener.Prefixes.Add($"http://localhost:{port}/");
     }
 
     public void Start()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (_listener.IsListening) return;
-        _cts = new CancellationTokenSource(); _listener.Start(); _ = Task.Run(() => ListenAsync(_cts.Token));
+        _cts = new CancellationTokenSource();
+        _listener.Start();
+        _listenTask = Task.Run(() => ListenAsync(_cts.Token));
     }
 
     private async Task ListenAsync(CancellationToken token)
@@ -30,7 +38,9 @@ public sealed class LocalApiServer : IDisposable
             HttpListenerContext? context = null;
             try { context = await _listener.GetContextAsync().WaitAsync(token).ConfigureAwait(false); await HandleAsync(context).ConfigureAwait(false); }
             catch (OperationCanceledException) { break; }
-            catch { context?.Response.Close(); }
+            catch (ObjectDisposedException) when (token.IsCancellationRequested || !_listener.IsListening) { break; }
+            catch (HttpListenerException) when (token.IsCancellationRequested || !_listener.IsListening) { break; }
+            catch { try { context?.Response.Close(); } catch { } }
         }
     }
 
@@ -47,8 +57,13 @@ public sealed class LocalApiServer : IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         try { _cts?.Cancel(); } catch { }
         try { _listener.Stop(); _listener.Close(); } catch { }
+        try { _listenTask?.Wait(TimeSpan.FromSeconds(2)); } catch (AggregateException ex) when (ex.InnerExceptions.All(x => x is OperationCanceledException or ObjectDisposedException or HttpListenerException)) { }
         _cts?.Dispose();
+        _listenTask = null;
+        GC.SuppressFinalize(this);
     }
 }

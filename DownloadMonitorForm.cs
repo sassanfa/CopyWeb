@@ -31,6 +31,7 @@ public sealed class DownloadMonitorForm : Form
         RightToLeft = RightToLeft.Yes;
         BackColor = UiTheme.Background;
         BuildUi(outputDirectory);
+        UiTheme.StyleDialog(this);
         RefreshRows();
         Localization.Apply(this, AppSettingsStore.Load().Language);
     }

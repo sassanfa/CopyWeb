@@ -65,6 +65,7 @@ public sealed class TutorialForm : Form
         card.Controls.Add(actions);
         root.Controls.Add(card);
         Controls.Add(root);
+        UiTheme.StyleDialog(this);
     }
 
     private void OpenEmail()
@@ -111,6 +112,15 @@ CopyWeb ابتدا صفحات داخلی سایت را پیدا می‌کند، 
 
 اگر سایت CAPTCHA نشان دهد، پنجره مرورگر باز می‌شود. CAPTCHA را خودتان حل کنید و سپس گزینه تأیید همه صفحه‌ها را بزنید تا عملیات ادامه پیدا کند.
 
+ورود به سایت و پیش‌نمایش آفلاین
+• برای ذخیره محتوای مخصوص اعضا، ابتدا از «ورود به» یا «ذخیره زنده» وارد سایت اصلی شوید و صفحه‌های موردنظر را باز کنید.
+• نام کاربری و رمز سایت اصلی داخل آرشیو آفلاین ذخیره نمی‌شود.
+• پیش‌نمایش آفلاین روی localhost اجرا می‌شود و ورود محلی آن همیشه نام کاربری admin و رمز admin است.
+• این حساب فقط از آرشیو محلی محافظت می‌کند و جایگزین حساب واقعی سایت نیست.
+• برای پایان نشست محلی از دکمه «خروج از حساب محلی» استفاده کنید.
+• CAPTCHA سایت اصلی فقط هنگام ورود آنلاین حل می‌شود؛ CAPTCHA در نسخه آفلاین کاربردی ندارد و هنگام نمایش آرشیو حذف می‌شود.
+• عملیات وابسته به سرور اصلی، مانند خرید، ثبت نظر یا تغییر رمز، در حالت کاملاً آفلاین قابل انجام نیست.
+
 خروجی
 صفحه‌ها در پوشه pages و منابع در پوشه‌های Img، CSS، JS، Fonts و Files ذخیره می‌شوند. لینک‌های داخلی صفحه‌ها برای مرور آفلاین بازنویسی می‌شوند.
 
@@ -148,6 +158,15 @@ Workflow
 4. “Stop and save” creates a safe checkpoint; use “Projects” later to resume the download.
 
 If a site shows a CAPTCHA, a browser window opens. Solve it yourself, then choose the option to approve all pages so the operation can continue.
+
+Authenticated sites and offline preview
+• To capture member-only content, first use “Sign in” or “Live archive” to log in to the original site and visit the pages you need.
+• Credentials for the original website are not stored in the offline archive.
+• Offline preview runs on localhost. Its local username is admin and its password is admin.
+• This local account protects only the replayed archive and does not replace the original website account.
+• Use “Sign out of local account” to end the local preview session.
+• A CAPTCHA from the original site is solved only while online. CAPTCHA widgets have no purpose offline and are removed from the replayed archive.
+• Server-side actions such as purchases, comments and password changes cannot work in a fully offline copy.
 
 Output
 Pages are saved under pages and resources under Img, CSS, JS, Fonts and Files. Internal links are rewritten for offline browsing.

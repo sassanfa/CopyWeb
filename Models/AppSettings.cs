@@ -2,10 +2,10 @@ namespace CopyWeb.Models;
 
 public sealed class AppSettings
 {
-    public string ThemePreset { get; set; } = "آبی";
-    public int PrimaryColorArgb { get; set; } = Color.FromArgb(92, 112, 146).ToArgb();
-    public int BackgroundColorArgb { get; set; } = Color.FromArgb(244, 247, 251).ToArgb();
-    public int SurfaceColorArgb { get; set; } = Color.White.ToArgb();
+    public string ThemePreset { get; set; } = "شب بنفش";
+    public int PrimaryColorArgb { get; set; } = Color.FromArgb(111, 82, 255).ToArgb();
+    public int BackgroundColorArgb { get; set; } = Color.FromArgb(8, 12, 37).ToArgb();
+    public int SurfaceColorArgb { get; set; } = Color.FromArgb(20, 26, 57).ToArgb();
     public bool SaveDetailedLogs { get; set; } = true;
     public string Language { get; set; } = "fa";
     public ProxyKind ProxyKind { get; set; } = ProxyKind.Http;

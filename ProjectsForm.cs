@@ -22,6 +22,7 @@ public sealed class ProjectsForm : Form
         RightToLeft = RightToLeft.Yes;
         BackColor = UiTheme.Background;
         BuildUi();
+        UiTheme.StyleDialog(this);
         Localization.Apply(this, AppSettingsStore.Load().Language);
         Shown += async (_, _) => await LoadProjectsAsync();
     }
@@ -46,12 +47,24 @@ public sealed class ProjectsForm : Form
         _grid.BorderStyle = BorderStyle.None;
         _grid.RowHeadersVisible = false;
         _grid.RightToLeft = RightToLeft.Yes;
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "site", HeaderText = "سایت", DataPropertyName = nameof(ProjectEntry.Site), Width = 280 });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "date", HeaderText = "آخرین ذخیره", DataPropertyName = nameof(ProjectEntry.Date), Width = 150 });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "links", HeaderText = "تعداد لینک", DataPropertyName = nameof(ProjectEntry.LinkCount), Width = 100 });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "storage", HeaderText = "پوشه ذخیره‌سازی", DataPropertyName = nameof(ProjectEntry.StoragePath), Width = 300 });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "size", HeaderText = "حجم", DataPropertyName = nameof(ProjectEntry.SizeText), Width = 100 });
-        _grid.Columns.Add(new DataGridViewButtonColumn { Name = "delete", HeaderText = "", Text = "X", UseColumnTextForButtonValue = true, Width = 48, FlatStyle = FlatStyle.Flat });
+        _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+        _grid.ScrollBars = ScrollBars.Vertical;
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "site", HeaderText = "سایت", DataPropertyName = nameof(ProjectEntry.Site), FillWeight = 25, MinimumWidth = 150 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "type", HeaderText = "نوع", DataPropertyName = nameof(ProjectEntry.Type), FillWeight = 9, MinimumWidth = 72 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "date", HeaderText = "آخرین ذخیره", DataPropertyName = nameof(ProjectEntry.Date), FillWeight = 15, MinimumWidth = 120 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "links", HeaderText = "تعداد لینک", DataPropertyName = nameof(ProjectEntry.LinkCount), FillWeight = 9, MinimumWidth = 75 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "storage", HeaderText = "پوشه ذخیره‌سازی", DataPropertyName = nameof(ProjectEntry.StoragePath), FillWeight = 36, MinimumWidth = 210 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "size", HeaderText = "حجم", DataPropertyName = nameof(ProjectEntry.SizeText), FillWeight = 10, MinimumWidth = 75 });
+        _grid.Columns.Add(new DataGridViewButtonColumn { Name = "delete", HeaderText = "", Text = "X", UseColumnTextForButtonValue = true, Width = 48, MinimumWidth = 48, AutoSizeMode = DataGridViewAutoSizeColumnMode.None, FlatStyle = FlatStyle.Flat });
+        _grid.CellFormatting += (_, e) =>
+        {
+            if (e.RowIndex >= 0 && _grid.Columns[e.ColumnIndex].Name == "type" &&
+                string.Equals(e.Value?.ToString(), "● زنده", StringComparison.Ordinal))
+            {
+                e.CellStyle.ForeColor = Color.FromArgb(52, 211, 153);
+                e.CellStyle.Font = new Font(UiTheme.NormalFont, FontStyle.Bold);
+            }
+        };
         _grid.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && _grid.Columns[e.ColumnIndex].Name == "delete") DeleteProject(_grid.Rows[e.RowIndex].DataBoundItem as ProjectEntry); };
         _grid.CellDoubleClick += (_, _) => ViewLinks();
         card.Controls.Add(_grid);
@@ -59,83 +72,51 @@ public sealed class ProjectsForm : Form
         _empty.TextAlign = ContentAlignment.MiddleCenter;
         card.Controls.Add(_empty);
 
-        var buttons = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 50,
-            FlowDirection = FlowDirection.RightToLeft,
-            WrapContents = false,
-            AutoScroll = true,
-            BackColor = Color.Transparent
-        };
+        var buttons = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 58, ColumnCount = 7, RowCount = 1, BackColor = Color.Transparent, RightToLeft = RightToLeft.Yes, Padding = new Padding(0, 6, 0, 0) };
+        for (var column = 0; column < buttons.ColumnCount; column++) buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / buttons.ColumnCount));
+        buttons.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var refresh = UiTheme.Button("به‌روزرسانی", Color.White);
         refresh.Tag = "secondary-button";
-        refresh.Width = 120;
         refresh.Click += async (_, _) => await LoadProjectsAsync();
         var view = UiTheme.Button("مشاهده لینک‌ها", Color.White);
         view.Tag = "secondary-button";
-        view.Width = 135;
         view.Click += (_, _) => ViewLinks();
         var folder = UiTheme.Button("بازکردن پوشه", Color.White);
         folder.Tag = "secondary-button";
-        folder.Width = 130;
         folder.Click += (_, _) => OpenFolder();
         var resume = UiTheme.Button("ادامه دانلود", UiTheme.Accent);
         resume.Tag = "accent-button";
-        resume.Width = 130;
         resume.Click += (_, _) => ResumeProject();
         var loadProject = UiTheme.Button("بارگذاری آدرس", Color.FromArgb(118, 137, 157));
-        loadProject.Width = 125;
         loadProject.Click += (_, _) => LoadProjectForEditing();
-        var validate = UiTheme.Button("اعتبارسنجی", Color.FromArgb(118, 137, 157));
-        validate.Width = 110;
-        validate.Click += (_, _) => ValidateProject();
-        var search = UiTheme.Button("جست‌وجوی متن", Color.FromArgb(118, 137, 157));
-        search.Width = 120;
-        search.Click += (_, _) => SearchProject();
-        var chat = UiTheme.Button("چت با آرشیو", Color.FromArgb(118, 137, 157));
-        chat.Width = 120;
-        chat.Click += (_, _) => ChatProject();
-        var graph = UiTheme.Button("نقشه سایت", Color.FromArgb(118, 137, 157));
-        graph.Width = 105;
-        graph.Click += (_, _) => GraphProject();
-        var snapshots = UiTheme.Button("Snapshot / Diff", Color.FromArgb(118, 137, 157));
-        snapshots.Width = 135;
-        snapshots.Click += (_, _) => OpenSnapshots();
-        var backup = UiTheme.Button("پشتیبان‌گیری", Color.FromArgb(118, 137, 157));
-        backup.Width = 125;
-        backup.Click += async (_, _) => await BackupProjectAsync();
-        var restore = UiTheme.Button("بازیابی پروژه", Color.FromArgb(118, 137, 157));
-        restore.Width = 125;
-        restore.Click += async (_, _) => await RestoreProjectAsync();
-        var copy = UiTheme.Button("کپی پروژه", Color.FromArgb(118, 137, 157));
-        copy.Width = 110;
-        copy.Click += async (_, _) => await CopyProjectAsync();
-        var rename = UiTheme.Button("تغییر نام", Color.FromArgb(118, 137, 157));
-        rename.Width = 105;
-        rename.Click += async (_, _) => await RenameProjectAsync();
-        var schedule = UiTheme.Button("زمان‌بندی", Color.FromArgb(118, 137, 157));
-        schedule.Width = 105;
-        schedule.Click += (_, _) => ScheduleProject();
-        var preview = UiTheme.Button("پیش‌نمایش آفلاین", Color.FromArgb(118, 137, 157));
-        preview.Width = 145;
-        preview.Click += (_, _) => PreviewProject();
-        var dashboard = UiTheme.Button("داشبورد", Color.FromArgb(118, 137, 157));
-        dashboard.Width = 105;
-        dashboard.Click += (_, _) => OpenDashboard();
-        var watch = UiTheme.Button("حالت Watch", Color.FromArgb(118, 137, 157));
-        watch.Width = 110;
-        watch.Click += (_, _) => OpenWatch();
-        var publish = UiTheme.Button("انتشار", Color.FromArgb(118, 137, 157));
-        publish.Width = 95;
-        publish.Click += (_, _) => OpenPublish();
-        var screenshots = UiTheme.Button("اسکرین‌شات قبل/بعد", Color.FromArgb(118, 137, 157));
-        screenshots.Width = 155;
-        screenshots.Click += async (_, _) => await CaptureScreenshotsAsync();
+        var more = UiTheme.Button("ابزارها ⋯", Color.FromArgb(118, 137, 157));
+        var toolsMenu = new ContextMenuStrip { RightToLeft = RightToLeft.Yes, BackColor = UiTheme.Surface, ForeColor = UiTheme.Text, ShowImageMargin = false, Font = UiTheme.NormalFont };
+        void AddTool(string text, EventHandler action) { var item = toolsMenu.Items.Add(text); item.Click += action; }
+        AddTool("اعتبارسنجی آرشیو", (_, _) => ValidateProject());
+        AddTool("جست‌وجوی متن", (_, _) => SearchProject());
+        AddTool("چت با آرشیو", (_, _) => ChatProject());
+        AddTool("نقشه سایت", (_, _) => GraphProject());
+        AddTool("پیش‌نمایش روی localhost", (_, _) => PreviewProject());
+        AddTool("Snapshot / Diff", (_, _) => OpenSnapshots());
+        AddTool("داشبورد پروژه", (_, _) => OpenDashboard());
+        AddTool("حالت Watch", (_, _) => OpenWatch());
+        AddTool("انتشار", (_, _) => OpenPublish());
+        AddTool("زمان‌بندی", (_, _) => ScheduleProject());
+        AddTool("تغییر نام", async (_, _) => await RenameProjectAsync());
+        AddTool("کپی پروژه", async (_, _) => await CopyProjectAsync());
+        AddTool("پشتیبان‌گیری", async (_, _) => await BackupProjectAsync());
+        AddTool("بازیابی پروژه", async (_, _) => await RestoreProjectAsync());
+        AddTool("اسکرین‌شات قبل/بعد", async (_, _) => await CaptureScreenshotsAsync());
+        more.Click += (_, _) => toolsMenu.Show(more, new Point(0, more.Height));
         var close = UiTheme.Button("بستن", UiTheme.Primary);
-        close.Width = 95;
         close.Click += (_, _) => Close();
-        buttons.Controls.AddRange([close, screenshots, publish, watch, dashboard, graph, chat, preview, validate, search, snapshots, loadProject, restore, backup, copy, rename, schedule, resume, folder, view, refresh]);
+        var visibleActions = new[] { close, resume, folder, view, loadProject, refresh, more };
+        for (var column = 0; column < visibleActions.Length; column++)
+        {
+            visibleActions[column].Dock = DockStyle.Fill;
+            visibleActions[column].Margin = new Padding(4, 0, 4, 0);
+            buttons.Controls.Add(visibleActions[column], column, 0);
+        }
 
         root.Controls.Add(card);
         root.Controls.Add(buttons);
@@ -191,8 +172,10 @@ public sealed class ProjectsForm : Form
             try
             {
                 var project = ProjectStorage.LoadAsync(file).GetAwaiter().GetResult();
+                var live = File.Exists(Path.Combine(Path.GetDirectoryName(file) ?? string.Empty, "live-capture-manifest.json"));
                 entries.Add(new ProjectEntry(
                     project.RootUrl,
+                    live ? "● زنده" : "معمولی",
                     File.GetLastWriteTime(file).ToString("yyyy-MM-dd HH:mm"),
                     project.Links.Count,
                     Path.GetDirectoryName(file) ?? string.Empty,
@@ -470,7 +453,7 @@ public sealed class ProjectsForm : Form
         }
     }
 
-    private sealed record ProjectEntry(string Site, string Date, int LinkCount, string StoragePath, string FileName, string SizeText);
+    private sealed record ProjectEntry(string Site, string Type, string Date, int LinkCount, string StoragePath, string FileName, string SizeText);
 
     private sealed class InputDialog : Form
     {

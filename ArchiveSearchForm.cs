@@ -12,6 +12,7 @@ public sealed class ArchiveSearchForm : Form
         var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 48, FlowDirection = FlowDirection.RightToLeft, WrapContents = false }; var find = UiTheme.Button("جست‌وجو", UiTheme.Primary); find.Width = 110; find.Click += async (_, _) => await SearchAsync(); var close = UiTheme.Button("بستن", Color.White); close.Tag = "secondary-button"; close.Width = 90; close.Click += (_, _) => Close(); bar.Controls.AddRange([close, find, _query]);
         _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "فایل", Width = 300 }); _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "خط", Width = 70 }); _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "متن پیدا شده", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill }); _grid.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && _grid.Rows[e.RowIndex].Cells[0].Value is string file && File.Exists(file)) Process.Start(new ProcessStartInfo(file) { UseShellExecute = true }); };
         panel.Controls.Add(_grid); panel.Controls.Add(bar); panel.Controls.Add(title); Controls.Add(panel);
+        UiTheme.StyleDialog(this);
     }
     private async Task SearchAsync()
     {

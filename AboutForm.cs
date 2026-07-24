@@ -26,7 +26,7 @@ public sealed class AboutForm : Form
         title.TextAlign = ContentAlignment.MiddleCenter;
 
         var details = UiTheme.Label(
-            $"CopyWeb Created by SassanFa\nDate : 1405-04-31\nVersion 1.3.2\nEmail : Sassanfa@gmail.com",
+            $"CopyWeb Created by SassanFa\nDate : 1405-05-01\nVersion 1.3.6\nEmail : Sassanfa@gmail.com",
             12,
             color: UiTheme.Text);
         details.AutoSize = false;
@@ -44,6 +44,7 @@ public sealed class AboutForm : Form
         card.Controls.Add(title);
         card.Controls.Add(actions);
         Controls.Add(card);
+        UiTheme.StyleDialog(this);
         Services.Localization.Apply(this, Services.AppSettingsStore.Load().Language);
     }
 

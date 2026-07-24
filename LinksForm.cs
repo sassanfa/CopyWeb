@@ -35,13 +35,14 @@ public sealed class LinksForm : Form
         BackColor = UiTheme.Background;
 
         BuildUi();
+        UiTheme.StyleDialog(this);
         RebuildRows();
         Localization.Apply(this, AppSettingsStore.Load().Language);
     }
 
     private void BuildUi()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 154, BackColor = Color.White, Padding = new Padding(24, 16, 24, 12) };
+        var header = new Panel { Dock = DockStyle.Top, Height = 154, BackColor = UiTheme.Surface, Padding = new Padding(24, 16, 24, 12) };
         var title = UiTheme.Label("لینک‌ها و منابع مرتبط پیدا شده", 16, FontStyle.Bold);
         title.Location = new Point(24, 14);
         _count.Location = new Point(26, 48);
@@ -65,7 +66,7 @@ public sealed class LinksForm : Form
         header.Controls.AddRange([title, _count, _search, _stateFilter, _kindFilter, _domainFilter, _minSize, _maxSize]);
 
         _grid.Dock = DockStyle.Fill;
-        _grid.BackgroundColor = Color.White;
+        _grid.BackgroundColor = UiTheme.Surface;
         _grid.BorderStyle = BorderStyle.None;
         _grid.RowHeadersVisible = false;
         _grid.AllowUserToAddRows = false;
@@ -76,10 +77,12 @@ public sealed class LinksForm : Form
         _grid.RowTemplate.Height = 34;
         _grid.ColumnHeadersHeight = 42;
         _grid.EnableHeadersVisualStyles = false;
-        _grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(241, 245, 249);
+        _grid.ColumnHeadersDefaultCellStyle.BackColor = ControlPaint.Light(UiTheme.Surface, 0.08F);
         _grid.ColumnHeadersDefaultCellStyle.ForeColor = UiTheme.Text;
-        _grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(219, 234, 254);
-        _grid.DefaultCellStyle.SelectionForeColor = UiTheme.Text;
+        _grid.DefaultCellStyle.BackColor = UiTheme.Surface;
+        _grid.DefaultCellStyle.ForeColor = UiTheme.Text;
+        _grid.DefaultCellStyle.SelectionBackColor = UiTheme.Action;
+        _grid.DefaultCellStyle.SelectionForeColor = Color.White;
         var expand = new DataGridViewButtonColumn
         {
             DataPropertyName = nameof(DisplayRow.Toggle), HeaderText = string.Empty, Width = 42,
@@ -100,22 +103,22 @@ public sealed class LinksForm : Form
         {
             if (e.RowIndex < 0 || e.RowIndex >= _grid.Rows.Count) return;
             if (_grid.Rows[e.RowIndex].DataBoundItem is DisplayRow row && row.IsResource)
-                e.CellStyle.BackColor = Color.FromArgb(248, 250, 252);
+                e.CellStyle.BackColor = ControlPaint.Light(UiTheme.Surface, 0.035F);
         };
 
         var bottom = new FlowLayoutPanel
         {
-            Dock = DockStyle.Bottom, Height = 66, BackColor = Color.White, Padding = new Padding(18, 12, 18, 8),
+            Dock = DockStyle.Bottom, Height = 66, BackColor = UiTheme.Surface, Padding = new Padding(18, 12, 18, 8),
             FlowDirection = FlowDirection.RightToLeft, WrapContents = false
         };
         var download = UiTheme.Button("دانلود موارد انتخاب‌شده"); download.Width = 220;
         download.Click += (_, _) => { _grid.EndEdit(); DialogResult = DialogResult.OK; Close(); };
-        var all = UiTheme.Button("انتخاب همه", Color.FromArgb(71, 85, 105)); all.Width = 115; all.Click += (_, _) => SetAll(true);
-        var none = UiTheme.Button("لغو انتخاب", Color.FromArgb(100, 116, 139)); none.Width = 115; none.Click += (_, _) => SetAll(false);
+        var all = UiTheme.Button("انتخاب همه", ControlPaint.Light(UiTheme.Surface, 0.08F)); all.Width = 115; all.Click += (_, _) => SetAll(true);
+        var none = UiTheme.Button("لغو انتخاب", ControlPaint.Light(UiTheme.Surface, 0.08F)); none.Width = 115; none.Click += (_, _) => SetAll(false);
         var remove = UiTheme.Button("حذف ردیف", UiTheme.Danger); remove.Width = 110; remove.Click += RemoveRows;
         var removeFailed = UiTheme.Button("حذف ناموفق‌ها", UiTheme.Danger); removeFailed.Width = 130; removeFailed.Click += (_, _) => RemoveFailed();
         var save = UiTheme.Button("ذخیره لیست", UiTheme.Accent); save.Width = 115; save.Click += SaveClick;
-        var load = UiTheme.Button("بارگذاری لیست", Color.FromArgb(91, 125, 135)); load.Width = 130; load.Click += LoadClick;
+        var load = UiTheme.Button("بارگذاری لیست", ControlPaint.Light(UiTheme.Surface, 0.08F)); load.Width = 130; load.Click += LoadClick;
         bottom.Controls.AddRange([download, all, none, removeFailed, remove, save, load]);
 
         Controls.Add(_grid);

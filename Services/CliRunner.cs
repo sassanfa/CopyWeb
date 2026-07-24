@@ -37,7 +37,17 @@ public static class CliRunner
         var proxyPassword = Value(args, "--proxy-password");
         Directory.CreateDirectory(output);
         Console.WriteLine($"Scanning {root}");
-        using var session = new SiteSession(new ProxyOptions { Enabled = !string.IsNullOrWhiteSpace(proxyAddress), Address = proxyAddress ?? string.Empty, Port = proxyPort, Kind = proxyKind, Username = proxyUser, Password = proxyPassword, RetryCount = retries, TimeoutSeconds = timeout, MaxDownloadSpeedKbps = speed });
+        var proxyOptions = new ProxyOptions { Enabled = !string.IsNullOrWhiteSpace(proxyAddress), Address = proxyAddress ?? string.Empty, Port = proxyPort, Kind = proxyKind, Username = proxyUser, Password = proxyPassword, RetryCount = retries, TimeoutSeconds = timeout, MaxDownloadSpeedKbps = speed };
+        var proxySnapshot = new ProxySnapshot
+        {
+            Enabled = proxyOptions.Enabled,
+            Kind = proxyKind,
+            Address = proxyOptions.Address,
+            Port = proxyPort,
+            EncryptedUsername = SecureStorage.Protect(proxyUser),
+            EncryptedPassword = SecureStorage.Protect(proxyPassword)
+        };
+        using var session = new SiteSession(proxyOptions);
         var crawler = new SiteCrawler(session);
         var crawlProgress = new Progress<CrawlProgress>(p => Console.WriteLine($"SCAN {p.Processed}/{p.Discovered} {p.Message}"));
         IReadOnlyCollection<DownloadItem>? resume = null;
@@ -48,10 +58,10 @@ public static class CliRunner
         }
         var links = await crawler.CrawlAsync(root, new CrawlOptions { MaxDepth = depth, MaxPages = maxPages, IncludeSubdomains = true, RespectRobotsTxt = true, ReadSitemaps = true, FollowCanonicalLinks = true, DelayMilliseconds = delay },
             (_, _) => Task.FromResult<IReadOnlyList<BrowserCookie>?>(null), crawlProgress, CancellationToken.None, resume);
-        await ProjectStorage.SaveAsync(Path.Combine(output, "links.json"), root, links);
+        await ProjectStorage.SaveAsync(Path.Combine(output, "links.json"), root, links, proxySnapshot);
         var downloader = new SiteDownloader(session);
         var progress = new Progress<DownloadProgress>(p => Console.WriteLine($"DOWNLOAD {p.Completed}/{p.Total} {p.CurrentPercent}% {p.CurrentUrl ?? p.Message}"));
-        await downloader.DownloadAsync(root, links, output, progress, CancellationToken.None, delay, concurrency, 512, speed, perDomain);
+        await downloader.DownloadAsync(root, links, output, progress, CancellationToken.None, delay, concurrency, 512, speed, perDomain, proxySnapshot);
         Console.WriteLine($"Completed. Output: {output}");
         return 0;
     }
@@ -73,6 +83,66 @@ public static class CliRunner
             var archive = temp + ".copyweb.zip"; ProjectArchiveService.CreateBackupAsync(Path.Combine(temp, "links.json"), archive).GetAwaiter().GetResult();
             var restored = temp + "-restored"; ProjectArchiveService.RestoreBackup(archive, restored);
             if (!File.Exists(Path.Combine(restored, "sample.txt"))) return 1;
+
+            var portProbe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            portProbe.Start();
+            var apiPort = ((System.Net.IPEndPoint)portProbe.LocalEndpoint).Port;
+            portProbe.Stop();
+            using (var api = new LocalApiServer(apiPort, () => new { ok = true }, () => { }))
+            using (var http = new HttpClient())
+            {
+                api.Start();
+                var response = http.GetStringAsync($"http://127.0.0.1:{apiPort}/api/status").GetAwaiter().GetResult();
+                if (!response.Contains("\"ok\":true", StringComparison.Ordinal)) return 1;
+                var localhostResponse = http.GetStringAsync($"http://localhost:{apiPort}/api/status").GetAwaiter().GetResult();
+                if (!localhostResponse.Contains("\"ok\":true", StringComparison.Ordinal)) return 1;
+            }
+            using (var preview = new OfflinePreviewServer(temp))
+            using (var http = new HttpClient())
+            {
+                preview.Start();
+                var html = http.GetStringAsync(preview.BaseUri).GetAwaiter().GetResult();
+                if (!html.Contains("missing.html", StringComparison.Ordinal)) return 1;
+            }
+            using (var preview = new OfflinePreviewServer(temp, requireAuthentication: true))
+            using (var handler = new HttpClientHandler { AllowAutoRedirect = false, CookieContainer = new System.Net.CookieContainer() })
+            using (var http = new HttpClient(handler))
+            {
+                preview.Start();
+                var protectedResponse = http.GetAsync(preview.BaseUri).GetAwaiter().GetResult();
+                var loginLocation = protectedResponse.Headers.Location;
+                var loginPath = loginLocation is null
+                    ? string.Empty
+                    : loginLocation.IsAbsoluteUri ? loginLocation.AbsolutePath : loginLocation.OriginalString;
+                if (protectedResponse.StatusCode != System.Net.HttpStatusCode.SeeOther ||
+                    !loginPath.Equals("/__copyweb/login", StringComparison.Ordinal)) return 1;
+                var loginPage = http.GetStringAsync(new Uri(preview.BaseUri, "__copyweb/login")).GetAwaiter().GetResult();
+                if (!loginPage.Contains("admin / admin", StringComparison.Ordinal)) return 1;
+                var wrongResponse = http.PostAsync(
+                    new Uri(preview.BaseUri, "__copyweb/login"),
+                    new FormUrlEncodedContent(new Dictionary<string, string> { ["username"] = "admin", ["password"] = "wrong" }))
+                    .GetAwaiter().GetResult();
+                if (wrongResponse.StatusCode != System.Net.HttpStatusCode.Unauthorized) return 1;
+                var loginResponse = http.PostAsync(
+                    new Uri(preview.BaseUri, "__copyweb/login"),
+                    new FormUrlEncodedContent(new Dictionary<string, string> { ["username"] = "admin", ["password"] = "admin" }))
+                    .GetAwaiter().GetResult();
+                if (loginResponse.StatusCode != System.Net.HttpStatusCode.SeeOther) return 1;
+                var archivedHtml = http.GetStringAsync(preview.BaseUri).GetAwaiter().GetResult();
+                if (!archivedHtml.Contains("missing.html", StringComparison.Ordinal) ||
+                    !archivedHtml.Contains("copyweb-offline-captcha-cleanup", StringComparison.Ordinal)) return 1;
+            }
+            var nestedArchive = Path.Combine(temp, "nested-archive");
+            var nestedSite = Path.Combine(nestedArchive, "example.com");
+            Directory.CreateDirectory(nestedSite);
+            File.WriteAllText(Path.Combine(nestedSite, "index.html"), "<html>nested-preview-ok</html>");
+            using (var nestedPreview = new OfflinePreviewServer(nestedArchive))
+            using (var http = new HttpClient())
+            {
+                nestedPreview.Start();
+                var html = http.GetStringAsync(nestedPreview.BaseUri).GetAwaiter().GetResult();
+                if (!html.Contains("nested-preview-ok", StringComparison.Ordinal)) return 1;
+            }
         }
         finally { try { if (Directory.Exists(temp)) Directory.Delete(temp, true); if (File.Exists(temp + ".copyweb.zip")) File.Delete(temp + ".copyweb.zip"); if (Directory.Exists(temp + "-restored")) Directory.Delete(temp + "-restored", true); } catch { } }
         Console.WriteLine("CopyWeb self-test passed.");
@@ -97,7 +167,7 @@ public static class CliRunner
 
     private static void PrintHelp()
     {
-        Console.WriteLine("CopyWeb CLI 1.3.2 - headless website archiver");
+        Console.WriteLine("CopyWeb CLI 1.3.6 - headless website archiver");
         Console.WriteLine();
         Console.WriteLine("Basic:");
         Console.WriteLine("  CopyWeb.exe --cli --url https://example.com --output C:\\Sites\\example");

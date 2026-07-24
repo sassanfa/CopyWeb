@@ -14,7 +14,9 @@ public sealed class SnapshotDiffForm : Form
         var bar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 48, FlowDirection = FlowDirection.RightToLeft, WrapContents = false }; var create = UiTheme.Button("ایجاد Snapshot", UiTheme.Accent); create.Width = 130; create.Click += async (_, _) => await CreateSnapshotAsync(); var compare = UiTheme.Button("مقایسه", UiTheme.Primary); compare.Width = 100; compare.Click += async (_, _) => await CompareAsync(); var close = UiTheme.Button("بستن", Color.White); close.Tag = "secondary-button"; close.Width = 90; close.Click += (_, _) => Close(); bar.Controls.AddRange([close, compare, create, _after, UiTheme.Label("نسخه جدید:"), _before, UiTheme.Label("نسخه قدیم:")]);
         _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "وضعیت", Width = 100 }); _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "فایل", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill }); _grid.CellClick += (_, e) => { if (e.RowIndex >= 0 && e.RowIndex < _diff.Count) ShowDiff(_diff[e.RowIndex]); };
         var split = new SplitContainer { Dock = DockStyle.Bottom, Height = 230, Orientation = Orientation.Vertical, SplitterDistance = 530 }; split.Panel1.Controls.Add(_left); split.Panel2.Controls.Add(_right);
-        panel.Controls.Add(_grid); panel.Controls.Add(split); panel.Controls.Add(bar); panel.Controls.Add(title); Controls.Add(panel); Shown += (_, _) => RefreshSnapshots();
+        panel.Controls.Add(_grid); panel.Controls.Add(split); panel.Controls.Add(bar); panel.Controls.Add(title); Controls.Add(panel);
+        UiTheme.StyleDialog(this);
+        Shown += (_, _) => RefreshSnapshots();
     }
     private void RefreshSnapshots()
     {

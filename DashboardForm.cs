@@ -15,6 +15,7 @@ public sealed class DashboardForm : Form
         grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "نوع فایل", Width = 180 }); grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "تعداد", Width = 110 }); grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "حجم", Width = 150 });
         var close = UiTheme.Button("بستن", Color.White); close.Tag = "secondary-button"; close.Dock = DockStyle.Bottom; close.Height = 42; close.Click += (_, _) => Close();
         root.Controls.Add(grid); root.Controls.Add(close); root.Controls.Add(title); Controls.Add(root);
+        UiTheme.StyleDialog(this);
         Shown += async (_, _) => await LoadAsync(projectFile, grid, title);
     }
 

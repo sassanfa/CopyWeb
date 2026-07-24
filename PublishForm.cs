@@ -16,6 +16,7 @@ public sealed class PublishForm : Form
         _source = Path.GetFullPath(source);
         Text = "انتشار پروژه"; StartPosition = FormStartPosition.CenterParent; Size = new Size(720, 360); MinimumSize = new Size(620, 320);
         Font = UiTheme.NormalFont; RightToLeft = RightToLeft.Yes; BackColor = UiTheme.Background; BuildUi();
+        UiTheme.StyleDialog(this);
     }
 
     private void BuildUi()

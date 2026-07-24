@@ -27,6 +27,7 @@ public sealed class ProxyProfilesForm : Form
         RightToLeft = RightToLeft.Yes;
         BackColor = UiTheme.Background;
         BuildUi();
+        UiTheme.StyleDialog(this);
         RefreshList();
     }
 

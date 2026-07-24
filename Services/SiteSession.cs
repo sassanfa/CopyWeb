@@ -70,10 +70,22 @@ public sealed class SiteSession : IDisposable
     }
 
     public Task<HttpResponseMessage> GetAsync(Uri uri, HttpCompletionOption option, CancellationToken token) =>
-        SendWithRetryAsync(uri, option, token);
+        SendWithRetryAsync(uri, option, token, null, null);
 
     public Task<HttpResponseMessage> GetAsync(Uri uri, CancellationToken token) =>
-        SendWithRetryAsync(uri, HttpCompletionOption.ResponseContentRead, token);
+        SendWithRetryAsync(uri, HttpCompletionOption.ResponseContentRead, token, null, null);
+
+    public Task<HttpResponseMessage> GetResourceAsync(
+        Uri uri,
+        Uri? referer,
+        HttpCompletionOption option,
+        CancellationToken token) =>
+        SendWithRetryAsync(
+            uri,
+            option,
+            token,
+            referer,
+            "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
 
     public void ImportCookies(IEnumerable<BrowserCookie> cookies)
     {
@@ -93,7 +105,12 @@ public sealed class SiteSession : IDisposable
         }
     }
 
-    private async Task<HttpResponseMessage> SendWithRetryAsync(Uri uri, HttpCompletionOption option, CancellationToken token)
+    private async Task<HttpResponseMessage> SendWithRetryAsync(
+        Uri uri,
+        HttpCompletionOption option,
+        CancellationToken token,
+        Uri? referer,
+        string? accept)
     {
         var retries = Math.Clamp(_options.RetryCount, 0, 10);
         for (var attempt = 0; ; attempt++)
@@ -102,7 +119,15 @@ public sealed class SiteSession : IDisposable
             try
             {
                 var client = _clients[Math.Abs(Interlocked.Increment(ref _nextClient)) % _clients.Length];
-                var response = await client.GetAsync(uri, option, token).ConfigureAwait(false);
+                using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                if (referer is not null && referer.IsAbsoluteUri && referer.Scheme is "http" or "https")
+                    request.Headers.Referrer = referer;
+                if (!string.IsNullOrWhiteSpace(accept))
+                {
+                    request.Headers.Remove("Accept");
+                    request.Headers.TryAddWithoutValidation("Accept", accept);
+                }
+                var response = await client.SendAsync(request, option, token).ConfigureAwait(false);
                 if (attempt < retries && IsTransient(response.StatusCode))
                 {
                     response.Dispose();

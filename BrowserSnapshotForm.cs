@@ -31,6 +31,7 @@ public sealed class BrowserSnapshotForm : Form
         top.Controls.Add(_status);
         Controls.Add(_browser);
         Controls.Add(top);
+        UiTheme.StyleDialog(this);
         Services.Localization.Apply(this, Services.AppSettingsStore.Load().Language);
         Shown += InitializeAsync;
         FormClosed += (_, _) => Complete(null);

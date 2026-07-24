@@ -300,8 +300,17 @@ public sealed class SiteCrawler(SiteSession session)
         // scripts rather than a normal img/srcset attribute. Scan the raw
         // markup as a final safety net so WebP/AVIF files are not missed.
         var rawMarkup = document.DocumentElement?.OuterHtml ?? string.Empty;
-        foreach (Match match in Regex.Matches(rawMarkup, "(?i)(?:(?:https?:)?//|/)[^\"'\\s<>),;]+\\.(?:webp|avif)(?:\\?[^\"'\\s<>),;]*)?"))
-            Add(match.Value, ResourceKind.Image);
+        var decodedMarkup = WebUtility.HtmlDecode(rawMarkup)
+            .Replace("\\/", "/", StringComparison.Ordinal)
+            .Replace("\\u002F", "/", StringComparison.OrdinalIgnoreCase);
+        foreach (Match match in Regex.Matches(
+                     decodedMarkup,
+                     "(?i)(?<url>(?:(?:https?:)?//|/|\\.\\.?/)[^\"'\\s<>),;]+\\.(?:webp|avif)(?:\\?[^\"'\\s<>),;]*)?)"))
+            Add(match.Groups["url"].Value, ResourceKind.Image);
+        foreach (Match match in Regex.Matches(
+                     decodedMarkup,
+                     "(?i)(?<url>[a-z0-9_%.-]+(?:/[a-z0-9_%.-]+)+\\.(?:webp|avif)(?:\\?[^\"'\\s<>),;]*)?)"))
+            Add(match.Groups["url"].Value, ResourceKind.Image);
 
         void AddSrcSet(string? value)
         {
